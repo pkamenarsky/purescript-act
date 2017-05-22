@@ -62,6 +62,13 @@ foreach lns dispatch pst cmp = do
   where
     items = view lns pst
 
+foreach_ :: forall ppst pst st. Lens' pst (Array st) -> (Effect ppst pst -> Handler pst) -> pst -> (ChildComponent pst st) -> Array (Element ppst pst)
+foreach_ lns dispatch pst cmp = do
+  Tuple index item <- zip (range 0 (length items - 1)) items
+  pure $ cmp.render (\e -> dispatch (mapEffect (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
+  where
+    items = view lns pst
+
 lensAt :: forall a. Int -> Lens' (Array a) a
 lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpdateAt index)
 
@@ -101,6 +108,16 @@ counter delete =
        ]
   }
 
+counter_ :: Component Int
+counter_ =
+  { render: \dispatch st ->
+     div [ ]
+       [ div [ P.onClick \_ -> dispatch (Pure (_ + 1)) ] [ R.text "+" ]
+       , div [ ] [ R.text $ show st ]
+       , div [ P.onClick \_ -> dispatch (Pure (_ - 1)) ] [ R.text "-" ]
+       ]
+  }
+
 list :: Component (Tuple String (Array Int))
 list =
   { render: \dispatch st ->
@@ -109,6 +126,7 @@ list =
        [ [ div [ P.onClick \_ -> dispatch (Pure (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
          ]
        , foreach _2 dispatch st counter
+       , foreach_ _2 dispatch st counter_
        ]
 
   }
