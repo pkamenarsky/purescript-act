@@ -45,9 +45,9 @@ type Component st = forall pst. ChildComponent pst st
 div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
 div = R.div
 
-button :: Component Boolean
-button =
-  { render: \dispatch st -> div [ P.onClick \e -> dispatch (Pure not) *> R.stopPropagation (unsafeCoerce e) *> R.preventDefault (unsafeCoerce e) ] [ R.text ("button: " <> show st) ]
+button :: forall st. (st -> st) -> ChildComponent st Boolean
+button mod =
+  { render: \dispatch st -> div [ P.onClick \e -> dispatch (Parent mod) *> dispatch (Pure not) *> R.stopPropagation (unsafeCoerce e) *> R.preventDefault (unsafeCoerce e) ] [ R.text ("button: " <> show st) ]
   }
 
 counter :: Component (Tuple String Boolean)
@@ -56,7 +56,7 @@ counter =
      div
        [ P.onClick \e -> dispatch (Pure (\(Tuple s b) -> Tuple (s <> "QM") b)) *> R.preventDefault (unsafeCoerce e) ]
        [ R.text ("state: " <> show st)
-       , zoom _2 dispatch st button
+       , zoom _2 dispatch st (button \(Tuple s b) -> Tuple "" b)
        ]
   }
 
