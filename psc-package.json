@@ -1,0 +1,13 @@
+{
+    "name": "purescript-act",
+    "set": "psc-0.11.4",
+    "source": "https://github.com/purescript/package-sets.git",
+    "depends": [
+      "prelude",
+      "dom",
+      "react",
+      "react-dom",
+      "tuples",
+      "profunctor-lenses"
+    ]
+}
