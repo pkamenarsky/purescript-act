@@ -5,6 +5,7 @@
     "depends": [
       "prelude",
       "dom",
+      "free",
       "react",
       "react-dom",
       "tuples",

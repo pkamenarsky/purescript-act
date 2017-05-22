@@ -2,7 +2,9 @@ module Act where
 
 import Control.Monad
 import Control.Monad.Eff
+import Control.Monad.Free
 import Data.Array
+import Data.Functor
 import Data.Lens
 import Data.Lens.Index
 import Data.Tuple
@@ -31,6 +33,42 @@ data Effect st' st =
     Pure (st -> st)
   | Parent (st' -> st')
   | GetHTTP String (String -> Effect st' st)
+
+data EffectF pst st next =
+    Modify (st -> st) next
+  | ModifyParent (pst -> pst) next
+  | GetHTTP' String (String -> next)
+
+derive instance functorEffectF :: Functor (EffectF pst st)
+
+mapEffectF :: forall st st' st'' next. Lens' st' st -> EffectF st' st next -> EffectF st'' st' next
+mapEffectF lns (Modify f next) = Modify (over lns f) next
+mapEffectF lns (ModifyParent f next) = Modify f next
+mapEffectF lns (GetHTTP' url next) = GetHTTP' url next
+
+type EffectM pst st a = Free (EffectF pst st) a
+
+mapEffectM :: forall st st' st'' a. Lens' st' st -> EffectM st' st a -> EffectM st'' st' a
+mapEffectM lns m = hoistFree (mapEffectF lns) m
+
+modify :: forall pst st. (st -> st) -> (EffectM pst st Unit)
+modify f = liftF $ Modify f unit
+
+modifyParent :: forall pst st. (pst -> pst) -> (EffectM pst st Unit)
+modifyParent f = liftF $ ModifyParent f unit
+
+getHTTP :: forall pst st. String -> EffectM pst st String
+getHTTP url = liftF $ GetHTTP' url id
+
+interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM pst st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
+interpretEffect this m = runFreeM go m
+  where
+    go (Modify f next) = do
+      R.transformState this f
+      pure next
+    go (ModifyParent _ _) = unsafeCrashWith "ModifyParent"
+    go (GetHTTP' url next) = do
+      pure $ next "Result"
 
 type Element pst st = R.ReactElement
 
