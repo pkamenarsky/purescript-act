@@ -54,7 +54,7 @@ counter :: Component (Tuple String Boolean)
 counter =
   { render: \dispatch st ->
      div
-       [ P.onClick \e -> dispatch (Pure (\(Tuple s b) -> Tuple (s <> "QM") b)) *> R.preventDefault (unsafeCoerce e) ]
+       [ P.onClick \e -> dispatch (GetHTTP "http://google.com" \result -> (Pure (\(Tuple s b) -> Tuple (s <> result) b))) *> R.preventDefault (unsafeCoerce e) ]
        [ R.text ("state: " <> show st)
        , zoom _2 dispatch st (button \(Tuple s b) -> Tuple "" b)
        ]
@@ -75,6 +75,9 @@ mkSpec st cmp = R.spec st \this -> do
   where
     dispatch this (Pure f) = R.transformState this f
     dispatch this _ = unsafeCoerce unit
+    dispatch this (GetHTTP url next) = do
+      result <- pure "Result"
+      dispatch this (next result)
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
