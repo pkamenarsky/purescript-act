@@ -1,5 +1,6 @@
 module Act where
 
+import Control.Monad
 import Control.Monad.Eff
 import Data.Lens
 import Data.Tuple
@@ -36,7 +37,7 @@ type Props pst st = P.Props
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type ChildComponent pst st =
-  { render :: st -> (Effect pst st -> Handler st) -> Element pst st
+  { render :: (Effect pst st -> Handler st) -> st -> Element pst st
   }
 
 type Component st = forall pst. ChildComponent pst st
@@ -46,14 +47,14 @@ div = R.div
 
 button :: Component Boolean
 button =
-  { render: \st dispatch -> div [ P.onMouseDown \e -> dispatch $ Pure not ] [ R.text ("button: " <> show st) ]
+  { render: \dispatch st -> div [ P.onClick \e -> dispatch (Pure not) *> R.stopPropagation (unsafeCoerce e) *> R.preventDefault (unsafeCoerce e) ] [ R.text ("button: " <> show st) ]
   }
 
 counter :: Component (Tuple String Boolean)
 counter =
-  { render: \st dispatch ->
+  { render: \dispatch st ->
      div
-       [ P.onMouseUp \e -> dispatch $ Pure (\(Tuple s b) -> Tuple (s <> "QM") b) ]
+       [ P.onClick \e -> dispatch (Pure (\(Tuple s b) -> Tuple (s <> "QM") b)) *> R.preventDefault (unsafeCoerce e) ]
        [ R.text ("state: " <> show st)
        , zoom _2 dispatch st button
        ]
@@ -65,19 +66,19 @@ mapEffect lns (GetHTTP url eff) = GetHTTP url \r -> (mapEffect lns (eff r))
 mapEffect lns (Parent f) = Pure f
 
 zoom :: forall ppst pst st. Lens' pst st -> (Effect ppst pst -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
-zoom lns dispatch pst cmp = cmp.render (view lns pst) \e -> dispatch (mapEffect lns e)
+zoom lns dispatch pst cmp = cmp.render (\e -> dispatch (mapEffect lns e)) (view lns pst) 
 
 mkSpec :: forall eff st. st -> Component st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
-  pure (cmp.render st' (dispatch this))
+  pure (cmp.render (dispatch this) st')
   where
     dispatch this (Pure f) = R.transformState this f
     dispatch this _ = unsafeCoerce unit
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple "Quantum" false) counter)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple "QM" false) counter)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
