@@ -77,7 +77,7 @@ type Props pst st = P.Props
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type ChildComponent pst st =
-  { render :: (Effect pst st -> Handler st) -> st -> Element pst st
+  { render :: (EffectM pst st Unit -> Handler st) -> st -> Element pst st
   }
 
 type Component st = forall pst. ChildComponent pst st
@@ -90,20 +90,20 @@ mapEffect lns (Pure f) = Pure (over lns f)
 mapEffect lns (GetHTTP url eff) = GetHTTP url \r -> (mapEffect lns (eff r))
 mapEffect lns (Parent f) = Pure f
 
-zoom :: forall ppst pst st. Lens' pst st -> (Effect ppst pst -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
-zoom lns dispatch pst cmp = cmp.render (\e -> dispatch (mapEffect lns e)) (view lns pst) 
+zoom :: forall ppst pst st. Lens' pst st -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
+zoom lns dispatch pst cmp = cmp.render (\e -> dispatch (mapEffectM lns e)) (view lns pst) 
 
-foreach :: forall ppst pst st. Lens' pst (Array st) -> (Effect ppst pst -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent pst st) -> Array (Element ppst pst)
+foreach :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent pst st) -> Array (Element ppst pst)
 foreach lns dispatch pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> dispatch (mapEffect (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
+  pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> dispatch (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
   where
     items = view lns pst
 
-foreach_ :: forall ppst pst st. Lens' pst (Array st) -> (Effect ppst pst -> Handler pst) -> pst -> (ChildComponent pst st) -> Array (Element ppst pst)
+foreach_ :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> (ChildComponent pst st) -> Array (Element ppst pst)
 foreach_ lns dispatch pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ cmp.render (\e -> dispatch (mapEffect (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
+  pure $ cmp.render (\e -> dispatch (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
   where
     items = view lns pst
 
@@ -115,12 +115,7 @@ unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 mkSpec :: forall eff st. st -> Component st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
-  pure (cmp.render (dispatch this) st')
-  where
-    dispatch this (Pure f) = R.transformState this f
-    dispatch this (Parent _) = unsafeCrashWith "Parent"
-    dispatch this (GetHTTP url next) = do
-      dispatch this (next "Result")
+  pure (cmp.render (interpretEffect this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
@@ -139,10 +134,10 @@ counter :: forall st. (st -> st) -> ChildComponent st Int
 counter delete =
   { render: \dispatch st ->
      div [ ]
-       [ div [ P.onClick \_ -> dispatch (Pure (_ + 1)) ] [ R.text "+" ]
+       [ div [ P.onClick \_ -> dispatch (modify (_ + 1)) ] [ R.text "+" ]
        , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> dispatch (Pure (_ - 1)) ] [ R.text "-" ]
-       , div [ P.onClick \_ -> dispatch (Parent delete) ] [ R.text "delete" ]
+       , div [ P.onClick \_ -> dispatch (modify (_ - 1)) ] [ R.text "-" ]
+       , div [ P.onClick \_ -> dispatch (modifyParent delete) ] [ R.text "delete" ]
        ]
   }
 
@@ -150,9 +145,9 @@ counter_ :: Component Int
 counter_ =
   { render: \dispatch st ->
      div [ ]
-       [ div [ P.onClick \_ -> dispatch (Pure (_ + 1)) ] [ R.text "+" ]
+       [ div [ P.onClick \_ -> dispatch (modify (_ + 1)) ] [ R.text "+" ]
        , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> dispatch (Pure (_ - 1)) ] [ R.text "-" ]
+       , div [ P.onClick \_ -> dispatch (modify (_ - 1)) ] [ R.text "-" ]
        ]
   }
 
@@ -161,7 +156,7 @@ list =
   { render: \dispatch st ->
      div
        [ ] $ concat
-       [ [ div [ P.onClick \_ -> dispatch (Pure (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
+       [ [ div [ P.onClick \_ -> dispatch (modify (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
          ]
        , foreach _2 dispatch st counter
        , foreach_ _2 dispatch st counter_
