@@ -91,19 +91,19 @@ mapEffect lns (GetHTTP url eff) = GetHTTP url \r -> (mapEffect lns (eff r))
 mapEffect lns (Parent f) = Pure f
 
 zoom :: forall ppst pst st. Lens' pst st -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
-zoom lns dispatch pst cmp = cmp.render (\e -> dispatch (mapEffectM lns e)) (view lns pst) 
+zoom lns effect pst cmp = cmp.render (\e -> effect (mapEffectM lns e)) (view lns pst) 
 
 foreach :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent pst st) -> Array (Element ppst pst)
-foreach lns dispatch pst cmp = do
+foreach lns effect pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> dispatch (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
+  pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
   where
     items = view lns pst
 
 foreach_ :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> (ChildComponent pst st) -> Array (Element ppst pst)
-foreach_ lns dispatch pst cmp = do
+foreach_ lns effect pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ cmp.render (\e -> dispatch (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
+  pure $ cmp.render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
   where
     items = view lns pst
 
@@ -132,34 +132,41 @@ main = void (elm' >>= render ui)
 
 counter :: forall st. (st -> st) -> ChildComponent st Int
 counter delete =
-  { render: \dispatch st ->
+  { render: \effect st ->
      div [ ]
-       [ div [ P.onClick \_ -> dispatch (modify (_ + 1)) ] [ R.text "+" ]
+       [ div [ P.onClick \_ -> effect dinc ] [ R.text "+" ]
        , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> dispatch (modify (_ - 1)) ] [ R.text "-" ]
-       , div [ P.onClick \_ -> dispatch (modifyParent delete) ] [ R.text "delete" ]
+       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "-" ]
+       , div [ P.onClick \_ -> effect (modifyParent delete) ] [ R.text "delete" ]
        ]
   }
+  where
+    dinc = do
+      modify (_ + 1)
+      modify (_ + 1)
+      res <- getHTTP "http://google.com"
+      when (res == "Result") (modify (_ + 1))
+      pure unit
 
 counter_ :: Component Int
 counter_ =
-  { render: \dispatch st ->
+  { render: \effect st ->
      div [ ]
-       [ div [ P.onClick \_ -> dispatch (modify (_ + 1)) ] [ R.text "+" ]
+       [ div [ P.onClick \_ -> effect (modify (_ + 1)) ] [ R.text "+" ]
        , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> dispatch (modify (_ - 1)) ] [ R.text "-" ]
+       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "-" ]
        ]
   }
 
 list :: Component (Tuple String (Array Int))
 list =
-  { render: \dispatch st ->
+  { render: \effect st ->
      div
        [ ] $ concat
-       [ [ div [ P.onClick \_ -> dispatch (modify (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
+       [ [ div [ P.onClick \_ -> effect (modify (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
          ]
-       , foreach _2 dispatch st counter
-       , foreach_ _2 dispatch st counter_
+       , foreach _2 effect st counter
+       , foreach_ _2 effect st counter_
        ]
 
   }
