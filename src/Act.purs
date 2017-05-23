@@ -38,7 +38,7 @@ undefined :: forall a. a
 undefined = unsafeCoerce unit
 
 data EffectF eff pst st next =
-    Modify (StaticPtr (st -> st)) next
+    Modify (st -> st) next
   | ModifyParent (pst -> pst) next
   | Effect (Eff eff Json) (Json -> next)
   | GetHTTP String (String -> next)
@@ -46,8 +46,8 @@ data EffectF eff pst st next =
 derive instance functorEffectF :: Functor (EffectF eff pst st)
 
 mapEffectF :: forall eff st st' st'' next. Lens' st' st -> EffectF eff st' st next -> EffectF eff st'' st' next
-mapEffectF lns (Modify f next) = Modify (static $ over lns $ derefStatic f) next
-mapEffectF lns (ModifyParent f next) = Modify (static f) next
+mapEffectF lns (Modify f next) = Modify (over lns f) next
+mapEffectF lns (ModifyParent f next) = Modify f next
 mapEffectF lns (Effect eff next) = Effect eff next
 mapEffectF lns (GetHTTP url next) = GetHTTP url next
 
@@ -57,7 +57,7 @@ mapEffectM :: forall eff st st' st'' a. Lens' st' st -> EffectM eff st' st a -> 
 mapEffectM lns m = hoistFree (mapEffectF lns) m
 
 modify :: forall eff pst st. (st -> st) -> (EffectM eff pst st Unit)
-modify f = liftF $ Modify (static f) unit
+modify f = liftF $ Modify f unit
 
 modifyParent :: forall eff pst st. (pst -> pst) -> (EffectM eff pst st Unit)
 modifyParent f = liftF $ ModifyParent f unit
@@ -72,7 +72,8 @@ interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM eff pst s
 interpretEffect this m = runFreeM go m
   where
     go (Modify f next) = do
-      _ <- (unsafeCoerce R.transformState) this (derefStatic f)
+      _ <- (unsafeCoerce R.transformState) this f
+      void $ traceAnyM $ static f
       pure next
     go (Effect eff next) = do
       json <- unsafeCoerce eff
