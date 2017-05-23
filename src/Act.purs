@@ -28,6 +28,11 @@ import React (transformState)
 import React.DOM.Props (onClick)
 import ReactDOM (render)
 
+foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
+
+traceAnyM :: forall m a. Monad m => a -> m a
+traceAnyM s = traceAny s \_ -> pure s
+
 undefined :: forall a. a
 undefined = unsafeCoerce unit
 
@@ -88,6 +93,12 @@ type ChildComponent eff pst st =
 
 type Component eff st = forall pst. ChildComponent eff pst st
 
+elementIndex :: forall pst st. Int -> Props pst st
+elementIndex = P.unsafeMkProps "data-element-index" <<< show
+
+onClick :: forall eff props state result. (R.Event -> R.EventHandlerContext eff props state result) -> P.Props
+onClick = P.onClick
+
 div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
 div = R.div
 
@@ -113,9 +124,15 @@ lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpd
 
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 
+getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
+getElementChildren e = R.getChildren (unsafeCoerce e)
+
 mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
+  let e = cmp.render (unsafeCoerce interpretEffect $ this) st'
+  ch <- getElementChildren e
+  _ <- traceAnyM ch
   pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -134,7 +151,7 @@ main = void (elm' >>= render ui)
 counter :: forall eff st. (st -> st) -> ChildComponent eff st Int
 counter delete =
   { render: \effect st ->
-     div [ ]
+     div [ elementIndex 666 ]
        [ div [ P.onClick \_ -> effect dinc ] [ R.text "+" ]
        , div [ ] [ R.text $ show st ]
        , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "-" ]
