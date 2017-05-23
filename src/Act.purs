@@ -138,8 +138,8 @@ mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   let e = cmp.render (unsafeCoerce interpretEffect $ this) st'
-  ch <- getElementAllChildren e
-  _ <- traceAnyM ch
+  -- ch <- getElementAllChildren e
+  -- _ <- traceAnyM ch
   pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -195,3 +195,16 @@ list =
        ]
 
   }
+
+--------------------------------------------------------------------------------
+
+data StaticPtr a = StaticPtr Int
+
+foreign import static_ :: forall a. a -> Int
+foreign import derefStatic_ :: forall a. Int -> a
+
+static :: forall a. a -> StaticPtr a
+static = static_ >>> StaticPtr
+
+derefStatic :: forall a. StaticPtr a -> a
+derefStatic (StaticPtr ptr) = derefStatic_ ptr
