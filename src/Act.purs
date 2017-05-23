@@ -89,6 +89,27 @@ type Props pst st = P.Props
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
+type ComponentU eff st stt =
+  { render :: ((st -> st) -> Handler st) -> stt -> Element Unit st
+  }
+
+type ComponentU' eff st =
+  { render :: ((st -> st) -> Handler st) -> st -> Element Unit st
+  }
+
+zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU' eff stt -> Element Unit st
+zoomU = undefined
+
+testU :: forall st stt eff. Lens' st String -> Lens' st stt -> (stt -> stt) -> ComponentU eff st String
+testU lns dellens delete =
+  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text a ]
+  }
+
+deleteButtonU :: forall st stt eff. Lens' st (Array stt) -> (Array stt -> Array stt) -> ComponentU eff st Unit
+deleteButtonU dellens delete =
+  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text "Delete" ]
+  }
+
 type ChildComponent eff pst st =
   { render :: (EffectM eff pst st Unit -> Handler st) -> st -> Element pst st
   }
@@ -126,6 +147,9 @@ lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpd
 
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 
+unitLens :: forall a. Lens' a Unit
+unitLens = lens (const unit) (\s _ -> s)
+
 getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
 getElementChildren e = R.getChildren (unsafeCoerce e)
 
@@ -156,14 +180,20 @@ main = void (elm' >>= render ui)
 
 --------------------------------------------------------------------------------
 
-counter :: forall eff st. (st -> st) -> ChildComponent eff st Int
-counter delete =
+deleteButton :: forall eff pst. (pst -> pst) -> ChildComponent eff pst Unit
+deleteButton delete =
+  { render: \effect _ -> div [ P.onClick \_ -> effect $ modifyParent delete ] [ R.text "delete" ]
+  }
+
+counter :: forall eff st. Lens' st Int -> (st -> st) -> ChildComponent eff st Int
+counter lns delete =
   { render: \effect st ->
      div [ elementIndex 666 ]
        [ div [ P.onClick \_ -> effect dinc ] [ R.text "++" ]
        , div [ ] [ R.text $ show st ]
        , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "--" ]
        , div [ P.onClick \_ -> effect (modifyParent delete) ] [ R.text "delete" ]
+       , (deleteButton (over undefined delete)).render (\e -> effect (mapEffectM unitLens e)) unit
        ]
   }
   where
@@ -192,7 +222,7 @@ list =
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (modify (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
          ]
-       , foreach _2 effect st counter
+       , foreach _2 effect st (counter undefined)
        , foreach_ _2 effect st counter_
        ]
 
