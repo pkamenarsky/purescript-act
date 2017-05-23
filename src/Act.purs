@@ -6,6 +6,7 @@ import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
+import Data.Traversable
 import Data.Lens
 import Data.Maybe
 import Data.Lens.Index
@@ -127,11 +128,17 @@ unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
 getElementChildren e = R.getChildren (unsafeCoerce e)
 
+getElementAllChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
+getElementAllChildren e = do
+  cs <- R.getChildren (unsafeCoerce e)
+  cs' <- concat <$> traverse getElementAllChildren cs
+  pure $ cs <> cs'
+
 mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   let e = cmp.render (unsafeCoerce interpretEffect $ this) st'
-  ch <- getElementChildren e
+  ch <- getElementAllChildren e
   _ <- traceAnyM ch
   pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
@@ -152,9 +159,9 @@ counter :: forall eff st. (st -> st) -> ChildComponent eff st Int
 counter delete =
   { render: \effect st ->
      div [ elementIndex 666 ]
-       [ div [ P.onClick \_ -> effect dinc ] [ R.text "+" ]
+       [ div [ P.onClick \_ -> effect dinc ] [ R.text "++" ]
        , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "-" ]
+       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "--" ]
        , div [ P.onClick \_ -> effect (modifyParent delete) ] [ R.text "delete" ]
        ]
   }
