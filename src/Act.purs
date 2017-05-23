@@ -3,9 +3,11 @@ module Act where
 import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Free
+import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
 import Data.Lens
+import Data.Maybe
 import Data.Lens.Index
 import Data.Tuple
 import Unsafe.Coerce
@@ -29,38 +31,47 @@ import ReactDOM (render)
 undefined :: forall a. a
 undefined = unsafeCoerce unit
 
-data EffectF pst st next =
+data EffectF eff pst st next =
     Modify (st -> st) next
   | ModifyParent (pst -> pst) next
+  | Effect (Eff eff Json) (Json -> next)
   | GetHTTP String (String -> next)
 
-derive instance functorEffectF :: Functor (EffectF pst st)
+derive instance functorEffectF :: Functor (EffectF eff pst st)
 
-mapEffectF :: forall st st' st'' next. Lens' st' st -> EffectF st' st next -> EffectF st'' st' next
+mapEffectF :: forall eff st st' st'' next. Lens' st' st -> EffectF eff st' st next -> EffectF eff st'' st' next
 mapEffectF lns (Modify f next) = Modify (over lns f) next
 mapEffectF lns (ModifyParent f next) = Modify f next
+mapEffectF lns (Effect eff next) = Effect eff next
 mapEffectF lns (GetHTTP url next) = GetHTTP url next
 
-type EffectM pst st a = Free (EffectF pst st) a
+type EffectM eff pst st a = Free (EffectF eff pst st) a
 
-mapEffectM :: forall st st' st'' a. Lens' st' st -> EffectM st' st a -> EffectM st'' st' a
+mapEffectM :: forall eff st st' st'' a. Lens' st' st -> EffectM eff st' st a -> EffectM eff st'' st' a
 mapEffectM lns m = hoistFree (mapEffectF lns) m
 
-modify :: forall pst st. (st -> st) -> (EffectM pst st Unit)
+modify :: forall eff pst st. (st -> st) -> (EffectM eff pst st Unit)
 modify f = liftF $ Modify f unit
 
-modifyParent :: forall pst st. (pst -> pst) -> (EffectM pst st Unit)
+modifyParent :: forall eff pst st. (pst -> pst) -> (EffectM eff pst st Unit)
 modifyParent f = liftF $ ModifyParent f unit
 
-getHTTP :: forall pst st. String -> EffectM pst st String
+getHTTP :: forall eff pst st. String -> EffectM eff pst st String
 getHTTP url = liftF $ GetHTTP url id
 
-interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM pst st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
+getHTTP' :: forall eff pst st. String -> EffectM eff pst st (Maybe String)
+getHTTP' url = liftF (Effect (pure $ fromString "Result'") toString)
+
+interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM eff pst st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
 interpretEffect this m = runFreeM go m
   where
     go (Modify f next) = do
-      R.transformState this f
+      _ <- (unsafeCoerce R.transformState) this f
       pure next
+    go (Effect eff next) = do
+      json <- unsafeCoerce eff
+      -- dump json here
+      pure $ next json
     go (ModifyParent _ _) = unsafeCrashWith "ModifyParent"
     go (GetHTTP url next) = do
       pure $ next "Result"
@@ -71,26 +82,26 @@ type Props pst st = P.Props
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
-type ChildComponent pst st =
-  { render :: (EffectM pst st Unit -> Handler st) -> st -> Element pst st
+type ChildComponent eff pst st =
+  { render :: (EffectM eff pst st Unit -> Handler st) -> st -> Element pst st
   }
 
-type Component st = forall pst. ChildComponent pst st
+type Component eff st = forall pst. ChildComponent eff pst st
 
 div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
 div = R.div
 
-zoom :: forall ppst pst st. Lens' pst st -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
+zoom :: forall eff ppst pst st. Lens' pst st -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ChildComponent eff pst st -> Element ppst pst
 zoom lns effect pst cmp = cmp.render (\e -> effect (mapEffectM lns e)) (view lns pst) 
 
-foreach :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent pst st) -> Array (Element ppst pst)
+foreach :: forall eff ppst pst st. Lens' pst (Array st) -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent eff pst st) -> Array (Element ppst pst)
 foreach lns effect pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
   pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
   where
     items = view lns pst
 
-foreach_ :: forall ppst pst st. Lens' pst (Array st) -> (EffectM ppst pst Unit -> Handler pst) -> pst -> (ChildComponent pst st) -> Array (Element ppst pst)
+foreach_ :: forall eff ppst pst st. Lens' pst (Array st) -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> (ChildComponent eff pst st) -> Array (Element ppst pst)
 foreach_ lns effect pst cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
   pure $ cmp.render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
@@ -102,10 +113,10 @@ lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpd
 
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 
-mkSpec :: forall eff st. st -> Component st -> R.ReactSpec Unit st eff
+mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
-  pure (cmp.render (interpretEffect this) st')
+  pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
@@ -120,7 +131,7 @@ main = void (elm' >>= render ui)
 
 --------------------------------------------------------------------------------
 
-counter :: forall st. (st -> st) -> ChildComponent st Int
+counter :: forall eff st. (st -> st) -> ChildComponent eff st Int
 counter delete =
   { render: \effect st ->
      div [ ]
@@ -134,11 +145,11 @@ counter delete =
     dinc = do
       modify (_ + 1)
       modify (_ + 1)
-      res <- getHTTP "http://google.com"
-      when (res == "Result") (modify (_ + 1))
+      res <- getHTTP' "http://google.com"
+      when (res == Just "Result'") (modify (_ + 1))
       pure unit
 
-counter_ :: Component Int
+counter_ :: forall eff. Component eff Int
 counter_ =
   { render: \effect st ->
      div [ ]
@@ -148,7 +159,7 @@ counter_ =
        ]
   }
 
-list :: Component (Tuple String (Array Int))
+list :: forall eff. Component eff (Tuple String (Array Int))
 list =
   { render: \effect st ->
      div
