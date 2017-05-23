@@ -29,22 +29,17 @@ import ReactDOM (render)
 undefined :: forall a. a
 undefined = unsafeCoerce unit
 
-data Effect st' st =
-    Pure (st -> st)
-  | Parent (st' -> st')
-  | GetHTTP String (String -> Effect st' st)
-
 data EffectF pst st next =
     Modify (st -> st) next
   | ModifyParent (pst -> pst) next
-  | GetHTTP' String (String -> next)
+  | GetHTTP String (String -> next)
 
 derive instance functorEffectF :: Functor (EffectF pst st)
 
 mapEffectF :: forall st st' st'' next. Lens' st' st -> EffectF st' st next -> EffectF st'' st' next
 mapEffectF lns (Modify f next) = Modify (over lns f) next
 mapEffectF lns (ModifyParent f next) = Modify f next
-mapEffectF lns (GetHTTP' url next) = GetHTTP' url next
+mapEffectF lns (GetHTTP url next) = GetHTTP url next
 
 type EffectM pst st a = Free (EffectF pst st) a
 
@@ -58,7 +53,7 @@ modifyParent :: forall pst st. (pst -> pst) -> (EffectM pst st Unit)
 modifyParent f = liftF $ ModifyParent f unit
 
 getHTTP :: forall pst st. String -> EffectM pst st String
-getHTTP url = liftF $ GetHTTP' url id
+getHTTP url = liftF $ GetHTTP url id
 
 interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM pst st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
 interpretEffect this m = runFreeM go m
@@ -67,7 +62,7 @@ interpretEffect this m = runFreeM go m
       R.transformState this f
       pure next
     go (ModifyParent _ _) = unsafeCrashWith "ModifyParent"
-    go (GetHTTP' url next) = do
+    go (GetHTTP url next) = do
       pure $ next "Result"
 
 type Element pst st = R.ReactElement
@@ -84,11 +79,6 @@ type Component st = forall pst. ChildComponent pst st
 
 div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
 div = R.div
-
-mapEffect :: forall st st' st''. Lens' st' st -> Effect st' st -> Effect st'' st'
-mapEffect lns (Pure f) = Pure (over lns f)
-mapEffect lns (GetHTTP url eff) = GetHTTP url \r -> (mapEffect lns (eff r))
-mapEffect lns (Parent f) = Pure f
 
 zoom :: forall ppst pst st. Lens' pst st -> (EffectM ppst pst Unit -> Handler pst) -> pst -> ChildComponent pst st -> Element ppst pst
 zoom lns effect pst cmp = cmp.render (\e -> effect (mapEffectM lns e)) (view lns pst) 
