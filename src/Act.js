@@ -7,11 +7,12 @@ exports.traceAny = function (x) {
   };
 };
 
-let static_ptr = 0;
-const static_ptr_table = {};
+var static_ptr = 0;
+var static_ptr_table = {};
 
 exports.static_ = function(a) {
   static_ptr_table[static_ptr] = a;
+  console.log(static_ptr_table);
   return static_ptr++;
 }
 
