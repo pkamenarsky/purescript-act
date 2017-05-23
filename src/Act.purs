@@ -37,38 +37,28 @@ traceAnyM s = traceAny s \_ -> pure s
 undefined :: forall a. a
 undefined = unsafeCoerce unit
 
-data EffectF eff pst st next =
+data EffectF eff st next =
     Modify (st -> st) next
-  | ModifyParent (pst -> pst) next
   | Effect (Eff eff Json) (Json -> next)
-  | GetHTTP String (String -> next)
 
-derive instance functorEffectF :: Functor (EffectF eff pst st)
+derive instance functorEffectF :: Functor (EffectF eff st)
 
-mapEffectF :: forall eff st st' st'' next. Lens' st' st -> EffectF eff st' st next -> EffectF eff st'' st' next
-mapEffectF lns (Modify f next) = Modify (over lns f) next
-mapEffectF lns (ModifyParent f next) = Modify f next
-mapEffectF lns (Effect eff next) = Effect eff next
-mapEffectF lns (GetHTTP url next) = GetHTTP url next
+zoomE :: forall eff s t next. Lens' s t -> EffectF eff t next -> EffectF eff s next
+zoomE lns (Modify f next) = Modify (over lns f) next
+zoomE lns (Effect eff next) = Effect eff next
 
-type EffectM eff pst st a = Free (EffectF eff pst st) a
+type EffectM eff st a = Free (EffectF eff st) a
 
-mapEffectM :: forall eff st st' st'' a. Lens' st' st -> EffectM eff st' st a -> EffectM eff st'' st' a
-mapEffectM lns m = hoistFree (mapEffectF lns) m
+zoomM :: forall eff st st' st'' a. Lens' s t -> EffectM eff t a -> EffectM eff s a
+zoomM lns m = hoistFree (zoomE lns) m
 
-modify :: forall eff pst st. (st -> st) -> (EffectM eff pst st Unit)
+modify :: forall eff st. (st -> st) -> (EffectM eff st Unit)
 modify f = liftF $ Modify f unit
 
-modifyParent :: forall eff pst st. (pst -> pst) -> (EffectM eff pst st Unit)
-modifyParent f = liftF $ ModifyParent f unit
-
-getHTTP :: forall eff pst st. String -> EffectM eff pst st String
-getHTTP url = liftF $ GetHTTP url id
-
-getHTTP' :: forall eff pst st. String -> EffectM eff pst st (Maybe String)
+getHTTP' :: forall eff st. String -> EffectM eff st (Maybe String)
 getHTTP' url = liftF (Effect (pure $ fromString "Result'") toString)
 
-interpretEffect :: forall eff pst st a. R.ReactThis Unit st -> EffectM eff pst st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
+interpretEffect :: forall eff st a. R.ReactThis Unit st -> EffectM eff st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
 interpretEffect this m = runFreeM go m
   where
     go (Modify f next) = do
@@ -79,21 +69,16 @@ interpretEffect this m = runFreeM go m
       json <- unsafeCoerce eff
       -- dump json here
       pure $ next json
-    go (ModifyParent _ _) = unsafeCrashWith "ModifyParent"
-    go (GetHTTP url next) = do
-      pure $ next "Result"
 
-type Element pst st = R.ReactElement
+type Element st = R.ReactElement
 
-type Props pst st = P.Props
+type Props st = P.Props
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
-type ChildComponent eff pst st =
-  { render :: (EffectM eff pst st Unit -> Handler st) -> st -> Element pst st
+type Component eff st =
+  { render :: (EffectM eff st Unit -> Handler st) -> st -> Element st
   }
-
-type Component eff st = forall pst. ChildComponent eff pst st
 
 elementIndex :: forall pst st. Int -> Props pst st
 elementIndex = P.unsafeMkProps "data-element-index" <<< show
@@ -104,8 +89,15 @@ onClick = P.onClick
 div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
 div = R.div
 
+{-
 zoom :: forall eff ppst pst st. Lens' pst st -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ChildComponent eff pst st -> Element ppst pst
 zoom lns effect pst cmp = cmp.render (\e -> effect (mapEffectM lns e)) (view lns pst) 
+
+unitLens :: forall a. Lens' a Unit
+unitLens = lens (const unit) (\s _ -> s)
+
+zoom_ :: forall eff ppst pst. (EffectM eff ppst pst Unit -> Handler pst) -> ChildComponent eff pst Unit -> Element ppst pst
+zoom_ effect cmp = cmp.render (\e -> effect (mapEffectM unitLens e)) unit
 
 foreach :: forall eff ppst pst st. Lens' pst (Array st) -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent eff pst st) -> Array (Element ppst pst)
 foreach lns effect pst cmp = do
@@ -125,6 +117,7 @@ lensAt :: forall a. Int -> Lens' (Array a) a
 lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpdateAt index)
 
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
+-}
 
 getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
 getElementChildren e = R.getChildren (unsafeCoerce e)
@@ -156,7 +149,12 @@ main = void (elm' >>= render ui)
 
 --------------------------------------------------------------------------------
 
-counter :: forall eff st. (st -> st) -> ChildComponent eff st Int
+deleteButton :: forall eff st. EffectM eff Unit Unit -> Component eff Unit
+deleteButton delete =
+  { render: \effect _ -> div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
+  }
+
+counter :: forall eff st. (st -> st) -> Component eff Int
 counter delete =
   { render: \effect st ->
      div [ elementIndex 666 ]
@@ -164,6 +162,7 @@ counter delete =
        , div [ ] [ R.text $ show st ]
        , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "--" ]
        , div [ P.onClick \_ -> effect (modifyParent delete) ] [ R.text "delete" ]
+       -- , (deleteButton (mapEffectM ?_ $ modifyParent delete)).render undefined undefined
        ]
   }
   where
