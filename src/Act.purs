@@ -138,6 +138,12 @@ getElementAllChildren e = do
   cs' <- concat <$> traverse getElementAllChildren cs
   pure $ cs <> cs'
 
+mkSpecU :: forall eff st. st -> ComponentU Unit st -> R.ReactSpec Unit st eff
+mkSpecU st cmp = R.spec st \this -> do
+  st' <- R.readState this
+  let e = cmp.render (R.transformState this) st'
+  pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
+
 mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
@@ -148,7 +154,7 @@ mkSpec st cmp = R.spec st \this -> do
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple "QM" []) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpecU (Tuple 666 []) listU)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -233,10 +239,20 @@ zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> 
 zoomU lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
 
 foreachU_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Array (Element Unit st)
-foreachU_ = undefined
+foreachU_ lns effect st cmp = do
+  Tuple index item <- zip (range 0 (length items - 1)) items
+  pure $ (cmp' index).render effect st
+  where
+    items = view lns st
+    cmp' index = zoomC (lensAt index >>> lns) effect st cmp
 
 foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
-foreachU = undefined
+foreachU lns effect st f = do
+  Tuple index item <- zip (range 0 (length items - 1)) items
+  pure $ (cmp index).render effect st
+  where
+    items = view lns st
+    cmp index = f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lensAt index >>> lns)
 
 --------------------------------------------------------------------------------
 
