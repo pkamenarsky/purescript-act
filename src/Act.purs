@@ -89,27 +89,6 @@ type Props pst st = P.Props
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
-type ComponentU eff st stt =
-  { render :: ((st -> st) -> Handler st) -> stt -> Element Unit st
-  }
-
-type ComponentU' eff st =
-  { render :: ((st -> st) -> Handler st) -> st -> Element Unit st
-  }
-
-zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU' eff stt -> Element Unit st
-zoomU = undefined
-
-testU :: forall st stt eff. Lens' st String -> Lens' st stt -> (stt -> stt) -> ComponentU eff st String
-testU lns dellens delete =
-  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text a ]
-  }
-
-deleteButtonU :: forall st stt eff. Lens' st (Array stt) -> (Array stt -> Array stt) -> ComponentU eff st Unit
-deleteButtonU dellens delete =
-  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text "Delete" ]
-  }
-
 type ChildComponent eff pst st =
   { render :: (EffectM eff pst st Unit -> Handler st) -> st -> Element pst st
   }
@@ -240,3 +219,57 @@ static = static_ >>> StaticPtr
 
 derefStatic :: forall a. StaticPtr a -> a
 derefStatic (StaticPtr ptr) = derefStatic_ ptr
+
+--------------------------------------------------------------------------------
+
+type ComponentU eff st stt =
+  { render :: ((st -> st) -> Handler st) -> stt -> Element Unit st
+  }
+
+zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> (Lens' st stt -> ComponentU eff st stt) -> Element Unit st
+zoomU = undefined
+
+type DeleteFunc st = Unit -- forall stt. Tuple (Lens' st (Array stt)) (Array stt -> Array stt)
+
+delete :: forall st stt. DeleteFunc st -> st -> st
+delete = undefined
+
+foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Lens' st stt -> DeleteFunc st -> ComponentU eff st stt) -> Element Unit st
+foreachU = undefined
+
+testU :: forall st stt eff. Lens' st String -> Lens' st stt -> (stt -> stt) -> ComponentU eff st String
+testU lns dellens delete =
+  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text a ]
+  }
+
+deleteButtonU :: forall st stt eff. Lens' st (Array stt) -> (Array stt -> Array stt) -> ComponentU eff st Unit
+deleteButtonU dellens delete =
+  { render: \effect a -> div [ P.onClick \_ -> effect $ over dellens delete ] [ R.text "Delete" ]
+  }
+
+type AppState = (Tuple Int (Array Int))
+
+counterU :: forall eff st. Lens' st Int -> ComponentU eff st Int
+counterU lns =
+  { render: \effect st ->
+     div [ elementIndex 666 ]
+       [ div [ P.onClick \_ -> effect $ over lns (_ + 1) ] [ R.text "++" ]
+       , div [ ] [ R.text $ show st ]
+       , div [ P.onClick \_ -> effect $ over lns (_ - 1) ] [ R.text "--" ]
+       -- , div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
+       ]
+  }
+
+listU :: forall eff. ComponentU eff AppState AppState
+listU =
+  { render: \effect st ->
+     div
+       [ ] $ concat
+       [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
+         ]
+       -- , foreachU _2 effect st counterU
+       , [ zoomU _1 effect st counterU ]
+       -- , [ (counterU _1).render effect (view _1 st) ]
+       ]
+
+  }
