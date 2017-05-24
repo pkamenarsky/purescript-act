@@ -226,10 +226,16 @@ type ComponentU eff st =
   { render :: ((st -> st) -> Handler st) -> st -> Element Unit st
   }
 
+zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> ComponentU eff st
+zoomC lns effect st cmp = undefined
+
 zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Element Unit st
 zoomU lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
 
-foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> ((st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
+foreachU_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Array (Element Unit st)
+foreachU_ = undefined
+
+foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
 foreachU = undefined
 
 --------------------------------------------------------------------------------
@@ -281,7 +287,8 @@ listU =
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
          ]
-       , foreachU _2 effect st (\d l -> counterU_ d l)
+       , foreachU _2 effect st \_ d l -> zoomC l effect st counterU
+       , foreachU _2 effect st \_ d l -> counterU_ d l
        , [ zoomU _1 effect st counterU ]
        ]
   }
