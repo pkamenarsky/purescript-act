@@ -150,11 +150,10 @@ getElementAllChildren e = do
   cs' <- concat <$> traverse getElementAllChildren cs
   pure $ cs <> cs'
 
-mkSpec :: forall eff st. st -> Component Unit st -> R.ReactSpec Unit st eff
+mkSpec :: forall eff st. st -> ComponentR Unit st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
-  let e = cmp.render (R.transformState this) st'
-  pure e
+  pure $ div [] (cmp.render (R.transformState this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
@@ -239,7 +238,7 @@ list =
 --------------------------------------------------------------------------------
 
 type ComponentR eff st =
-  { render :: ((st -> st) -> Handler st) -> st -> R.ReactElement
+  { render :: ((st -> st) -> Handler st) -> st -> Array R.ReactElement
   -- , onfetchstart :: st -> st
   -- , onfetchend :: st -> st
   }
@@ -250,10 +249,10 @@ onClickR :: forall eff st. (R.Event -> st -> st) -> PropsR eff st
 onClickR f effect = P.onClick \e -> effect (f e)
 
 divR :: forall eff st. Array (PropsR eff st) -> Array (ComponentR eff st) -> ComponentR eff st
-divR props children = { render: \effect st -> div (map (\p -> p effect) props) (map (\e -> e.render effect st) children) }
+divR props children = { render: \effect st -> [ div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 textR :: forall eff st. String -> ComponentR eff st
-textR str = { render: \_ _ -> R.text str }
+textR str = { render: \_ _ -> [ R.text str ] }
 
 stateR :: forall eff st. (st -> ComponentR eff st) -> ComponentR eff st
 stateR f = { render: \effect st -> (f st).render effect st }
@@ -263,8 +262,14 @@ stateR f = { render: \effect st -> (f st).render effect st }
 zoomR :: forall eff st stt. Lens' st stt -> ComponentR eff stt -> ComponentR eff st
 zoomR lns cmp = { render: \effect st -> cmp.render (\e -> effect (over lns e)) (view lns st) }
 
-foreachR :: forall eff st stt. Lens' st (Array stt) -> Component eff stt -> Array (Component eff st)
-foreachR lns f = undefined
+foreachR :: forall eff st stt. Lens' st (Array stt) -> ComponentR eff stt -> ComponentR eff st
+foreachR lns cmp = { render }
+  where
+    render effect st = concat $ do
+      Tuple index item <- zip (range 0 (length items - 1)) items
+      pure $ cmp.render (\f -> effect (over (lns <<< lensAt index) f)) (unsafePartial $ fromJust $ items !! index)
+      where
+        items = view lns st
 
 foreachR_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Array (Component eff st)
 foreachR_ lns f = undefined -- do
@@ -288,9 +293,9 @@ counterR =
 listR :: forall eff. ComponentR eff (Tuple Int (Array Int))
 listR =
   divR
-    [ ] $ concat
-    [ [ stateR $ textR <<< show ]
-    , [ divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ] ]
-    , [ zoomR _1 counterR ]
+    [ ]
+    [ stateR $ textR <<< show
+    , divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ]
+    , zoomR _1 counterR
     , foreachR _2 counterR
     ]
