@@ -27,7 +27,7 @@ import Data.Maybe (fromJust)
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import React (transformState)
 import React.DOM.Props (onClick)
-import ReactDOM (render)
+import ReactDOM as RD
 
 foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
 
@@ -100,6 +100,9 @@ type Component eff st =
   { render :: ((st -> st) -> Handler st) -> st -> Element st
   }
 
+render :: forall eff st. Component eff st -> ((st -> st) -> Handler st) -> st -> Element st
+render cmp = cmp.render
+
 zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> Component eff stt -> Component eff st
 zoomC lns effect cmp =
   { render: \effect st -> cmp.render (\f -> effect (over lns f)) (view lns st)
@@ -108,13 +111,13 @@ zoomC lns effect cmp =
 zoom :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> Component eff stt -> Element st
 zoom lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
 
-foreachU_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> Component eff stt -> Array (Element st)
-foreachU_ lns effect st cmp = do
+foreach_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> Component eff stt -> Array (Element st)
+foreach_ lns effect st cmp = do
   Tuple index item <- zip (range 0 (length items - 1)) items
   pure $ (cmp' index).render effect st
   where
     items = view lns st
-    cmp' index = zoomC (lensAt index >>> lns) effect cmp
+    cmp' index = zoomC (lns <<< lensAt index) effect cmp
 
 foreach :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Array (Element st)
 foreach lns effect st f = do
@@ -154,7 +157,7 @@ mkSpec st cmp = R.spec st \this -> do
   pure e
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
-main = void (elm' >>= render ui)
+main = void (elm' >>= RD.render ui)
   where ui = R.createFactory (R.createClass (mkSpec (Tuple 666 []) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
@@ -205,7 +208,7 @@ counter_ delete lns =
        , div [ ] [ R.text $ show st ]
        , div [ P.onClick \_ -> effect (_ - 1) ] [ R.text "--" ]
        -- , div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
-       , (deleteButtonUst delete (lns <<< unitLens)).render effectPrn stPrn
+       , render (deleteButtonUst delete (lns <<< unitLens)) effectPrn stPrn
        ]
   }
 
@@ -226,6 +229,7 @@ list =
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
          ]
+       , foreach_ _2 effect st counter
        , foreach _2 effect st \_ d l -> zoomC l effect counter
        , foreach _2 effect st \_ d l -> counter_ d l
        , [ zoom _1 effect st counter ]
