@@ -18,6 +18,7 @@ import DOM.Node.Types as D
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
+import ReactDOM as RD
 import DOM.HTML (window)
 import DOM.HTML.Types (htmlDocumentToDocument)
 import DOM.HTML.Window (document)
@@ -26,7 +27,6 @@ import DOM.Node.Types (ElementId(..), documentToNonElementParentNode)
 import Data.Maybe (fromJust)
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import React (transformState)
-import ReactDOM as RD
 
 foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
 
@@ -99,31 +99,31 @@ type Element st = R.ReactElement
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type Component eff st =
-  { render :: ((st -> st) -> Handler st) -> st -> Array R.ReactElement
+  { render :: (Effect eff st Unit -> Handler st) -> st -> Array R.ReactElement
   -- , onfetchstart :: st -> st
   -- , onfetchend :: st -> st
   }
 
-type Props eff st = ((st -> st) -> Handler st) -> P.Props
+type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 
 state :: forall eff st. (st -> Component eff st) -> Component eff st
 state f = { render: \effect st -> (f st).render effect st }
 
 zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
-zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (over lns e)) (view lns st) }
+zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (mapEffect lns e)) (view lns st) }
 
 zoomProps :: forall eff st stt. Lens' st stt -> Props eff stt -> Props eff st
-zoomProps lns effect f = effect \b -> f (lns b)
+zoomProps lns effect f = effect \b -> f (mapEffect lns b)
 
 zoomState :: forall eff st stt. Lens' st stt -> (stt -> Component eff stt) -> Component eff st
-zoomState lns f = { render: \effect st -> (f (view lns st)).render (\e -> effect (over lns e)) (view lns st) }
+zoomState lns f = { render: \effect st -> (f (view lns st)).render (\e -> effect (mapEffect lns e)) (view lns st) }
 
 foreach :: forall eff st stt. Lens' st (Array stt) -> Component eff stt -> Component eff st
 foreach lns cmp = { render }
   where
     render effect st = concat $ do
       Tuple index item <- zip (range 0 (length items - 1)) items
-      pure $ cmp.render (\f -> effect (over (lns <<< lensAt index) f)) (unsafePartial $ fromJust $ items !! index)
+      pure $ cmp.render (\f -> effect (mapEffect (lns <<< lensAt index) f)) (unsafePartial $ fromJust $ items !! index)
       where
         items = view lns st
 
@@ -138,7 +138,7 @@ foreach_ lns f = { render }
 
 --------------------------------------------------------------------------------
 
-onClick :: forall eff st. (R.Event -> st -> st) -> Props eff st
+onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
 onClick f effect = P.onClick \e -> effect (f e)
 
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
@@ -161,10 +161,10 @@ getElementAllChildren e = do
   cs' <- concat <$> traverse getElementAllChildren cs
   pure $ cs <> cs'
 
-mkSpec :: forall eff st. st -> Component Unit st -> R.ReactSpec Unit st eff
+mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
-  pure $ R.div [] (cmp.render (R.transformState this) st')
+  pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
@@ -180,24 +180,24 @@ main = void (elm' >>= RD.render ui)
 --------------------------------------------------------------------------------
 
 deleteButton :: forall st eff. (st -> st) -> Lens' st Unit -> Component eff st
-deleteButton delete lns = div [ onClick $ const delete ] [ text "Delete Button" ]
+deleteButton delete lns = div [ onClick $ const $ modify delete ] [ text "Delete Button" ]
 
 counter_ :: forall eff st. (st -> st) -> Lens' st Int -> Component eff st
 counter_ delete lns =
   div [ ]
-    [ div [ zoomProps lns $ onClick (\_ st -> st + 1) ] [ text "++" ]
+    [ div [ zoomProps lns $ onClick $ const $ modify (_ + 1) ] [ text "++" ]
     , div [ ] [ zoomState lns \ st -> text $ show st ]
-    , div [ zoomProps lns $ onClick (\_ st -> st - 1) ] [ text "--" ]
-    , div [ onClick $ const delete ] [ text "Delete" ]
+    , div [ zoomProps lns $ onClick $ const $ modify (_ - 1) ] [ text "--" ]
+    , div [ onClick $ const $ modify delete ] [ text "Delete" ]
     , deleteButton delete (lns <<< unitLens)
     ]
 
 counter :: forall eff. Component eff Int
 counter =
   div [ ]
-    [ div [ onClick $ const (_ + 1) ] [ text "++" ]
+    [ div [ onClick $ const $ modify (_ + 1) ] [ text "++" ]
     , div [ ] [ state \st -> text $ show st ]
-    , div [ onClick $ const (_ - 1) ] [ text "--" ]
+    , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
     ]
 
 list :: forall eff. Component eff (Tuple Int (Array Int))
@@ -205,7 +205,7 @@ list =
   div
     [ ]
     [ state $ text <<< show
-    , div [ onClick \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ text "+" ]
+    , div [ onClick $ const $ modify \(Tuple str arr) -> Tuple str (cons 0 arr) ] [ text "+" ]
     , zoom _1 counter
     , foreach _2 counter
     , foreach_ _2 \_ d l -> counter_ d l
