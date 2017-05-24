@@ -9,6 +9,7 @@ import Data.Functor
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
+import Data.Map
 import Data.Lens.Index
 import Data.Tuple
 import Unsafe.Coerce
@@ -101,19 +102,19 @@ type Element st = R.ReactElement
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type Component eff st =
-  { render :: Index -> (Effect eff st Unit -> Handler st) -> st -> Tuple Index (Array R.ReactElement)
+  { render :: Index -> (Index -> Effect eff st Unit -> Handler st) -> st -> Tuple (Map Index (Effect eff st Unit)) (Array R.ReactElement)
   -- , onfetchstart :: st -> st
   -- , onfetchend :: st -> st
   }
 
 type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 
--- state :: forall eff st. (st -> Component eff st) -> Component eff st
--- state f = { render: \effect st -> (f st).render effect st }
--- 
--- zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
--- zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (mapEffect lns e)) (view lns st) }
--- 
+state :: forall eff st. (st -> Component eff st) -> Component eff st
+state f = { render: \index effect st -> (f st).render index effect st }
+
+zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
+zoom lns cmp = { render: \index effect st -> ?_ $ cmp.render index (\index' e -> effect index' (mapEffect lns e)) (view lns st) }
+
 -- zoomProps :: forall eff st stt. Lens' st stt -> Props eff stt -> Props eff st
 -- zoomProps lns effect f = effect \b -> f (mapEffect lns b)
 -- 
@@ -140,17 +141,18 @@ type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 
 --------------------------------------------------------------------------------
 
--- onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
--- onClick f effect = P.onClick \e -> effect (f e)
--- 
+onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
+onClick f effect = P.onClick \e -> effect (f e)
+
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
-div props children = { render: \index effect st -> Tuple undefined [ R.div (map (\p -> p effect) props) undefined ] }
+div props children = { render }
   where
-   go index children = case uncons children of
-     Just { head: x, tail: xs } -> undefined
--- 
--- text :: forall eff st. String -> Component eff st
--- text str = { render: \_ _ -> [ R.text str ] }
+   render index effect st = Tuple (unions effs) [ R.div (map (\p -> p (effect index)) props) (concat children') ]
+     where
+       Tuple effs children' = unzip $ map (\(Tuple chindex ch) -> ch.render (cons chindex index) effect st) (zip (range 0 (length children - 1)) children)
+
+text :: forall eff st. String -> Component eff st
+text str = { render: \_ _ _ -> Tuple empty [ R.text str ] }
 
 --------------------------------------------------------------------------------
 
@@ -166,10 +168,11 @@ div props children = { render: \index effect st -> Tuple undefined [ R.div (map 
 --   cs' <- concat <$> traverse getElementAllChildren cs
 --   pure $ cs <> cs'
 -- 
--- mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
--- mkSpec st cmp = R.spec st \this -> do
---   st' <- R.readState this
---   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
+mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
+mkSpec st cmp = R.spec st \this -> do
+  st' <- R.readState this
+  let Tuple effs e = cmp.render [] (\index -> unsafeCoerce interpretEffect $ this) st'
+  pure $ R.div [] e
 -- 
 -- main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 -- main = void (elm' >>= RD.render ui)
