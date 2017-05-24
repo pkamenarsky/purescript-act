@@ -142,7 +142,7 @@ mkSpecU :: forall eff st. st -> ComponentU Unit st -> R.ReactSpec Unit st eff
 mkSpecU st cmp = R.spec st \this -> do
   st' <- R.readState this
   let e = cmp.render (R.transformState this) st'
-  pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
+  pure e
 
 mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
 mkSpec st cmp = R.spec st \this -> do
@@ -232,8 +232,10 @@ type ComponentU eff st =
   { render :: ((st -> st) -> Handler st) -> st -> Element Unit st
   }
 
-zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> ComponentU eff st
-zoomC lns effect st cmp = undefined
+zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> ComponentU eff stt -> ComponentU eff st
+zoomC lns effect cmp =
+  { render: \effect st -> cmp.render (\f -> effect (over lns f)) (view lns st)
+  }
 
 zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Element Unit st
 zoomU lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
@@ -244,7 +246,7 @@ foreachU_ lns effect st cmp = do
   pure $ (cmp' index).render effect st
   where
     items = view lns st
-    cmp' index = zoomC (lensAt index >>> lns) effect st cmp
+    cmp' index = zoomC (lensAt index >>> lns) effect cmp
 
 foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
 foreachU lns effect st f = do
@@ -271,12 +273,12 @@ deleteButtonUst delete lns =
   { render: \effect a -> div [ P.onClick \_ -> effect delete ] [ R.text "Delete" ]
   }
 
-nested :: forall eff st stt. Lens' st stt -> (((stt -> stt) -> Handler st) -> stt -> ComponentU eff st) -> ComponentU eff st
-nested = undefined
+nested :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> (((stt -> stt) -> Handler st) -> stt -> Element Unit st) -> Element Unit st
+nested lns effect st f = f (\f -> effect (over lns f)) (view lns st)
 
 counterU_ :: forall eff st. (st -> st) -> Lens' st Int -> ComponentU eff st
-counterU_ delete lns = nested lns \effect st ->
-  { render: \effectPrn stPrn ->
+counterU_ delete lns =
+  { render: \effectPrn stPrn -> nested lns effectPrn stPrn \effect st ->
      div [ elementIndex 666 ]
        [ div [ P.onClick \_ -> effect (_ + 1) ] [ R.text "++" ]
        , div [ ] [ R.text $ show st ]
@@ -303,7 +305,7 @@ listU =
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
          ]
-       , foreachU _2 effect st \_ d l -> zoomC l effect st counterU
+       , foreachU _2 effect st \_ d l -> zoomC l effect counterU
        , foreachU _2 effect st \_ d l -> counterU_ d l
        , [ zoomU _1 effect st counterU ]
        ]
