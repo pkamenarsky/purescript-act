@@ -61,7 +61,7 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 
 data EffectF eff st next =
     Modify (st -> st) next
-  | Effect (Eff eff Json) (Json -> next)
+  | Effect Json (Json -> Eff eff Json) (Json -> next)
 
 derive instance functorEffectF :: Functor (EffectF eff st)
 
@@ -69,7 +69,7 @@ type Effect eff st = Free (EffectF eff st)
 
 mapEffectF :: forall eff st stt next. Lens' st stt -> EffectF eff stt next -> EffectF eff st next
 mapEffectF lns (Modify f next) = Modify (over lns f) next
-mapEffectF lns (Effect eff next) = Effect eff next
+mapEffectF lns (Effect json eff next) = Effect json eff next
 
 mapEffect :: forall eff st stt a. Lens' st stt -> Effect eff stt a -> Effect eff st a
 mapEffect lns m = hoistFree (mapEffectF lns) m
@@ -78,7 +78,7 @@ modify :: forall eff st. (st -> st) -> (Effect eff st Unit)
 modify f = liftF $ Modify f unit
 
 getHTTP :: forall eff st. String -> Effect eff st (Maybe String)
-getHTTP url = liftF (Effect (pure $ fromString "Result'") toString)
+getHTTP url = liftF (Effect (fromString url) (\_ -> pure $ fromString "Result'") toString)
 
 interpretEffect :: forall eff st a. R.ReactThis Unit st -> Effect eff st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
 interpretEffect this m = runFreeM go m
@@ -87,10 +87,10 @@ interpretEffect this m = runFreeM go m
       _ <- (unsafeCoerce R.transformState) this f
       void $ traceAnyM $ static f
       pure next
-    go (Effect eff next) = do
-      json <- unsafeCoerce eff
+    go (Effect json eff next) = do
       -- dump json here
-      pure $ next json
+      res <- unsafeCoerce $ eff json
+      pure $ next res
 
 --------------------------------------------------------------------------------
 
