@@ -229,13 +229,10 @@ type ComponentU eff st =
 zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Element Unit st
 zoomU lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
 
-type DeleteFunc st = Unit -- forall stt. Tuple (Lens' st (Array stt)) (Array stt -> Array stt)
+foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> ((st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
+foreachU = undefined
 
-delete :: forall st stt. DeleteFunc st -> st -> st
-delete = undefined
-
--- foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Lens' st stt -> DeleteFunc st -> ComponentU eff st stt) -> Element Unit st
--- foreachU = undefined
+--------------------------------------------------------------------------------
 
 testU :: forall st eff. Lens' st String -> (st -> st) -> ComponentU eff st
 testU lns delete =
@@ -247,7 +244,25 @@ deleteButtonU delete =
   { render: \effect a -> div [ P.onClick \_ -> effect delete ] [ R.text "Delete" ]
   }
 
-type AppState = (Tuple Int (Array Int))
+deleteButtonUst :: forall st eff. (st -> st) -> Lens' st Unit -> ComponentU eff st
+deleteButtonUst delete lns =
+  { render: \effect a -> div [ P.onClick \_ -> effect delete ] [ R.text "Delete" ]
+  }
+
+nested :: forall eff st stt. Lens' st stt -> (((stt -> stt) -> Handler st) -> stt -> ComponentU eff st) -> ComponentU eff st
+nested = undefined
+
+counterU_ :: forall eff st. (st -> st) -> Lens' st Int -> ComponentU eff st
+counterU_ delete lns = nested lns \effect st ->
+  { render: \effectPrn stPrn ->
+     div [ elementIndex 666 ]
+       [ div [ P.onClick \_ -> effect (_ + 1) ] [ R.text "++" ]
+       , div [ ] [ R.text $ show st ]
+       , div [ P.onClick \_ -> effect (_ - 1) ] [ R.text "--" ]
+       -- , div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
+       , (deleteButtonUst delete (lns <<< unitLens)).render effectPrn stPrn
+       ]
+  }
 
 counterU :: forall eff. ComponentU eff Int
 counterU =
@@ -256,19 +271,17 @@ counterU =
        [ div [ P.onClick \_ -> effect (_ + 1) ] [ R.text "++" ]
        , div [ ] [ R.text $ show st ]
        , div [ P.onClick \_ -> effect (_ - 1) ] [ R.text "--" ]
-       -- , div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
        ]
   }
 
-listU :: forall eff. ComponentU eff AppState
+listU :: forall eff. ComponentU eff (Tuple Int (Array Int))
 listU =
   { render: \effect st ->
      div
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
          ]
-       -- , foreachU _2 effect st counterU
+       , foreachU _2 effect st (\d l -> counterU_ d l)
        , [ zoomU _1 effect st counterU ]
-       -- , [ (counterU _1).render effect (view _1 st) ]
        ]
   }
