@@ -77,8 +77,8 @@ mapEffect lns m = hoistFree (mapEffectF lns) m
 modify :: forall eff st. (st -> st) -> (Effect eff st Unit)
 modify f = liftF $ Modify f unit
 
-getHTTP' :: forall eff st. String -> Effect eff st (Maybe String)
-getHTTP' url = liftF (Effect (pure $ fromString "Result'") toString)
+getHTTP :: forall eff st. String -> Effect eff st (Maybe String)
+getHTTP url = liftF (Effect (pure $ fromString "Result'") toString)
 
 interpretEffect :: forall eff st a. R.ReactThis Unit st -> Effect eff st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
 interpretEffect this m = runFreeM go m
@@ -168,7 +168,7 @@ mkSpec st cmp = R.spec st \this -> do
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple 666 []) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -200,13 +200,17 @@ counter =
     , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
     ]
 
-list :: forall eff. Component eff (Tuple Int (Array Int))
+list :: forall eff. Component eff (Tuple (Maybe String) (Array Int))
 list =
   div
     [ ]
     [ state $ text <<< show
-    , div [ onClick $ const $ modify \(Tuple str arr) -> Tuple str (cons 0 arr) ] [ text "+" ]
-    , zoom _1 counter
+    , div [ onClick $ const ajax ] [ text "+" ]
+    -- , zoom _1 counter
     , foreach _2 counter
     , foreach_ _2 \_ d l -> counter_ d l
     ]
+  where
+    ajax = do
+      res <- getHTTP "http://google.com"
+      modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
