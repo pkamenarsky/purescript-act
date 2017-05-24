@@ -271,16 +271,32 @@ foreachR lns cmp = { render }
       where
         items = view lns st
 
-foreachR_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Array (Component eff st)
-foreachR_ lns f = undefined -- do
-  -- Tuple index item <- zip (range 0 (length items - 1)) items
-  -- pure { render: \effect st -> (cmp index).render effect st }
-  -- where
-  --   render st index effect st (cmp index).render effect st
-  --   items = view lns st
-  --   cmp index = f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lensAt index >>> lns)
+foreachR_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> ComponentR eff st) -> ComponentR eff st
+foreachR_ lns f = { render }
+  where
+    render effect st = concat $ do
+      Tuple index item <- zip (range 0 (length items - 1)) items
+      pure $ (f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lns <<< lensAt index)).render effect st
+      where
+        items = view lns st
 
 --------------------------------------------------------------------------------
+
+zoomProps :: forall eff st stt. Lens' st stt -> PropsR eff stt -> PropsR eff st
+zoomProps lns effect f = effect \b -> f (lns b)
+
+zoomState :: forall eff st stt. Lens' st stt -> (stt -> ComponentR eff stt) -> ComponentR eff st
+zoomState lns f = { render: \effect st -> (f (view lns st)).render (\e -> effect (over lns e)) (view lns st) }
+
+counterR_ :: forall eff st. (st -> st) -> Lens' st Int -> ComponentR eff st
+counterR_ delete lns =
+  divR [ ]
+    [ divR [ zoomProps lns $ onClickR (\_ st -> st + 1) ] [ textR "++" ]
+    , divR [ ] [ zoomState lns \ st -> textR $ show st ]
+    , divR [ zoomProps lns $ onClickR (\_ st -> st - 1) ] [ textR "--" ]
+    -- , div [ P.onClick \_ -> effect delete ] [ R.text "delete" ]
+    -- , render (deleteButtonUst delete (lns <<< unitLens)) effectPrn stPrn
+    ]
 
 counterR :: forall eff. ComponentR eff Int
 counterR =
@@ -298,4 +314,5 @@ listR =
     , divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ]
     , zoomR _1 counterR
     , foreachR _2 counterR
+    , foreachR_ _2 \_ d l -> counterR_ d l
     ]
