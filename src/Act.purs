@@ -94,123 +94,128 @@ interpretEffect this m = runFreeM go m
 
 --------------------------------------------------------------------------------
 
+type Index = Array Int
+
 type Element st = R.ReactElement
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type Component eff st =
-  { render :: (Effect eff st Unit -> Handler st) -> st -> Array R.ReactElement
+  { render :: Index -> (Effect eff st Unit -> Handler st) -> st -> Tuple Index (Array R.ReactElement)
   -- , onfetchstart :: st -> st
   -- , onfetchend :: st -> st
   }
 
 type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 
-state :: forall eff st. (st -> Component eff st) -> Component eff st
-state f = { render: \effect st -> (f st).render effect st }
-
-zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
-zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (mapEffect lns e)) (view lns st) }
-
-zoomProps :: forall eff st stt. Lens' st stt -> Props eff stt -> Props eff st
-zoomProps lns effect f = effect \b -> f (mapEffect lns b)
-
-zoomState :: forall eff st stt. Lens' st stt -> (stt -> Component eff stt) -> Component eff st
-zoomState lns f = { render: \effect st -> (f (view lns st)).render (\e -> effect (mapEffect lns e)) (view lns st) }
-
-foreach :: forall eff st stt. Lens' st (Array stt) -> Component eff stt -> Component eff st
-foreach lns cmp = { render }
-  where
-    render effect st = concat $ do
-      Tuple index item <- zip (range 0 (length items - 1)) items
-      pure $ cmp.render (\f -> effect (mapEffect (lns <<< lensAt index) f)) (unsafePartial $ fromJust $ items !! index)
-      where
-        items = view lns st
-
-foreach_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Component eff st
-foreach_ lns f = { render }
-  where
-    render effect st = concat $ do
-      Tuple index item <- zip (range 0 (length items - 1)) items
-      pure $ (f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lns <<< lensAt index)).render effect st
-      where
-        items = view lns st
+-- state :: forall eff st. (st -> Component eff st) -> Component eff st
+-- state f = { render: \effect st -> (f st).render effect st }
+-- 
+-- zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
+-- zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (mapEffect lns e)) (view lns st) }
+-- 
+-- zoomProps :: forall eff st stt. Lens' st stt -> Props eff stt -> Props eff st
+-- zoomProps lns effect f = effect \b -> f (mapEffect lns b)
+-- 
+-- zoomState :: forall eff st stt. Lens' st stt -> (stt -> Component eff stt) -> Component eff st
+-- zoomState lns f = { render: \effect st -> (f (view lns st)).render (\e -> effect (mapEffect lns e)) (view lns st) }
+-- 
+-- foreach :: forall eff st stt. Lens' st (Array stt) -> Component eff stt -> Component eff st
+-- foreach lns cmp = { render }
+--   where
+--     render effect st = concat $ do
+--       Tuple index item <- zip (range 0 (length items - 1)) items
+--       pure $ cmp.render (\f -> effect (mapEffect (lns <<< lensAt index) f)) (unsafePartial $ fromJust $ items !! index)
+--       where
+--         items = view lns st
+-- 
+-- foreach_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Component eff st
+-- foreach_ lns f = { render }
+--   where
+--     render effect st = concat $ do
+--       Tuple index item <- zip (range 0 (length items - 1)) items
+--       pure $ (f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lns <<< lensAt index)).render effect st
+--       where
+--         items = view lns st
 
 --------------------------------------------------------------------------------
 
-onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
-onClick f effect = P.onClick \e -> effect (f e)
-
+-- onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
+-- onClick f effect = P.onClick \e -> effect (f e)
+-- 
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
-div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
-
-text :: forall eff st. String -> Component eff st
-text str = { render: \_ _ -> [ R.text str ] }
-
---------------------------------------------------------------------------------
-
-elementIndex :: forall eff st. Int -> Props eff st
-elementIndex index _ = P.unsafeMkProps "data-element-index" (show index)
-
-getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
-getElementChildren e = R.getChildren (unsafeCoerce e)
-
-getElementAllChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
-getElementAllChildren e = do
-  cs <- R.getChildren (unsafeCoerce e)
-  cs' <- concat <$> traverse getElementAllChildren cs
-  pure $ cs <> cs'
-
-mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
-mkSpec st cmp = R.spec st \this -> do
-  st' <- R.readState this
-  pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
-
-main :: forall eff. Eff (dom :: D.DOM | eff) Unit
-main = void (elm' >>= RD.render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-
-        elm' :: Eff (dom :: D.DOM | eff) D.Element
-        elm' = do
-          win <- window
-          doc <- document win
-          elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
-          pure $ unsafePartial fromJust elm
-
---------------------------------------------------------------------------------
-
-deleteButton :: forall st eff. (st -> st) -> Lens' st Unit -> Component eff st
-deleteButton delete lns = div [ onClick $ const $ modify delete ] [ text "Delete Button" ]
-
-counter_ :: forall eff st. (st -> st) -> Lens' st Int -> Component eff st
-counter_ delete lns =
-  div [ ]
-    [ div [ zoomProps lns $ onClick $ const $ modify (_ + 1) ] [ text "++" ]
-    , div [ ] [ zoomState lns \ st -> text $ show st ]
-    , div [ zoomProps lns $ onClick $ const $ modify (_ - 1) ] [ text "--" ]
-    , div [ onClick $ const $ modify delete ] [ text "Delete" ]
-    , deleteButton delete (lns <<< unitLens)
-    ]
-
-counter :: forall eff. Component eff Int
-counter =
-  div [ ]
-    [ div [ onClick $ const $ modify (_ + 1) ] [ text "++" ]
-    , div [ ] [ state \st -> text $ show st ]
-    , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
-    ]
-
-list :: forall eff. Component eff (Tuple (Maybe String) (Array Int))
-list =
-  div
-    [ ]
-    [ state $ text <<< show
-    , div [ onClick $ const ajax ] [ text "+" ]
-    -- , zoom _1 counter
-    , foreach _2 counter
-    , foreach_ _2 \_ d l -> counter_ d l
-    ]
+div props children = { render: \index effect st -> Tuple undefined [ R.div (map (\p -> p effect) props) undefined ] }
   where
-    ajax = do
-      res <- getHTTP "http://google.com"
-      modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
+   go index children = case uncons children of
+     Just { head: x, tail: xs } -> undefined
+-- 
+-- text :: forall eff st. String -> Component eff st
+-- text str = { render: \_ _ -> [ R.text str ] }
+
+--------------------------------------------------------------------------------
+
+-- elementIndex :: forall eff st. Int -> Props eff st
+-- elementIndex index _ = P.unsafeMkProps "data-element-index" (show index)
+-- 
+-- getElementChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
+-- getElementChildren e = R.getChildren (unsafeCoerce e)
+-- 
+-- getElementAllChildren :: forall eff. R.ReactElement -> Eff (props :: R.ReactProps | eff) (Array R.ReactElement)
+-- getElementAllChildren e = do
+--   cs <- R.getChildren (unsafeCoerce e)
+--   cs' <- concat <$> traverse getElementAllChildren cs
+--   pure $ cs <> cs'
+-- 
+-- mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
+-- mkSpec st cmp = R.spec st \this -> do
+--   st' <- R.readState this
+--   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
+-- 
+-- main :: forall eff. Eff (dom :: D.DOM | eff) Unit
+-- main = void (elm' >>= RD.render ui)
+--   where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
+-- 
+--         elm' :: Eff (dom :: D.DOM | eff) D.Element
+--         elm' = do
+--           win <- window
+--           doc <- document win
+--           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
+--           pure $ unsafePartial fromJust elm
+
+--------------------------------------------------------------------------------
+
+-- deleteButton :: forall st eff. (st -> st) -> Lens' st Unit -> Component eff st
+-- deleteButton delete lns = div [ onClick $ const $ modify delete ] [ text "Delete Button" ]
+-- 
+-- counter_ :: forall eff st. (st -> st) -> Lens' st Int -> Component eff st
+-- counter_ delete lns =
+--   div [ ]
+--     [ div [ zoomProps lns $ onClick $ const $ modify (_ + 1) ] [ text "++" ]
+--     , div [ ] [ zoomState lns \ st -> text $ show st ]
+--     , div [ zoomProps lns $ onClick $ const $ modify (_ - 1) ] [ text "--" ]
+--     , div [ onClick $ const $ modify delete ] [ text "Delete" ]
+--     , deleteButton delete (lns <<< unitLens)
+--     ]
+-- 
+-- counter :: forall eff. Component eff Int
+-- counter =
+--   div [ ]
+--     [ div [ onClick $ const $ modify (_ + 1) ] [ text "++" ]
+--     , div [ ] [ state \st -> text $ show st ]
+--     , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
+--     ]
+-- 
+-- list :: forall eff. Component eff (Tuple (Maybe String) (Array Int))
+-- list =
+--   div
+--     [ ]
+--     [ state $ text <<< show
+--     , div [ onClick $ const ajax ] [ text "+" ]
+--     -- , zoom _1 counter
+--     , foreach _2 counter
+--     , foreach_ _2 \_ d l -> counter_ d l
+--     ]
+--   where
+--     ajax = do
+--       res <- getHTTP "http://google.com"
+--       modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
