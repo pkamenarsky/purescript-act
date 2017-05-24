@@ -235,3 +235,48 @@ list =
        , [ zoom _1 effect st counter ]
        ]
   }
+
+--------------------------------------------------------------------------------
+
+type ComponentR eff st =
+  { render :: ((st -> st) -> Handler st) -> st -> R.ReactElement
+  -- , onfetchstart :: st -> st
+  -- , onfetchend :: st -> st
+  }
+
+type PropsR eff st = ((st -> st) -> Handler st) -> P.Props
+
+zoomR :: forall eff st stt. Lens' st stt -> ComponentR eff stt -> ComponentR eff st
+zoomR lns cmp = { render: \effect st -> cmp.render (\e -> effect (over lns e)) (view lns st) }
+
+onClickR :: forall eff st. (R.Event -> st -> st) -> PropsR eff st
+onClickR f effect = P.onClick \e -> effect (f e)
+
+divR :: forall eff st. Array (PropsR eff st) -> Array (ComponentR eff st) -> ComponentR eff st
+divR props children = { render: \effect st -> div (map (\p -> p effect) props) (map (\e -> e.render effect st) children) }
+
+textR :: forall eff st. String -> ComponentR eff st
+textR str = { render: \_ _ -> R.text str }
+
+stateR :: forall eff st. (st -> ComponentR eff st) -> ComponentR eff st
+stateR f = { render: \effect st -> (f st).render effect st }
+
+--------------------------------------------------------------------------------
+
+counterR :: forall eff. ComponentR eff Int
+counterR =
+  divR [ ]
+    [ divR [ onClickR $ const (_ + 1) ] [ textR "++" ]
+    , divR [ ] [ stateR \st -> textR $ show st ]
+    , divR [ onClickR $ const (_ - 1) ] [ textR "--" ]
+    ]
+
+listR :: forall eff. ComponentR eff (Tuple Int (Array Int))
+listR =
+  divR
+    [ ] $ concat
+    [ [ divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ]
+      ]
+    , [ zoomR _1 counterR
+      ]
+    ]
