@@ -158,7 +158,7 @@ mkSpec st cmp = R.spec st \this -> do
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple 666 []) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple 666 []) listR)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -246,9 +246,6 @@ type ComponentR eff st =
 
 type PropsR eff st = ((st -> st) -> Handler st) -> P.Props
 
-zoomR :: forall eff st stt. Lens' st stt -> ComponentR eff stt -> ComponentR eff st
-zoomR lns cmp = { render: \effect st -> cmp.render (\e -> effect (over lns e)) (view lns st) }
-
 onClickR :: forall eff st. (R.Event -> st -> st) -> PropsR eff st
 onClickR f effect = P.onClick \e -> effect (f e)
 
@@ -260,6 +257,23 @@ textR str = { render: \_ _ -> R.text str }
 
 stateR :: forall eff st. (st -> ComponentR eff st) -> ComponentR eff st
 stateR f = { render: \effect st -> (f st).render effect st }
+
+--------------------------------------------------------------------------------
+
+zoomR :: forall eff st stt. Lens' st stt -> ComponentR eff stt -> ComponentR eff st
+zoomR lns cmp = { render: \effect st -> cmp.render (\e -> effect (over lns e)) (view lns st) }
+
+foreachR :: forall eff st stt. Lens' st (Array stt) -> Component eff stt -> Array (Component eff st)
+foreachR lns f = undefined
+
+foreachR_ :: forall eff st stt. Lens' st (Array stt) -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Array (Component eff st)
+foreachR_ lns f = undefined -- do
+  -- Tuple index item <- zip (range 0 (length items - 1)) items
+  -- pure { render: \effect st -> (cmp index).render effect st }
+  -- where
+  --   render st index effect st (cmp index).render effect st
+  --   items = view lns st
+  --   cmp index = f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lensAt index >>> lns)
 
 --------------------------------------------------------------------------------
 
@@ -275,8 +289,8 @@ listR :: forall eff. ComponentR eff (Tuple Int (Array Int))
 listR =
   divR
     [ ] $ concat
-    [ [ divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ]
-      ]
-    , [ zoomR _1 counterR
-      ]
+    [ [ stateR $ textR <<< show ]
+    , [ divR [ onClickR \_ (Tuple str arr) -> Tuple str (cons 0 arr) ] [ textR "+" ] ]
+    , [ zoomR _1 counterR ]
+    , foreachR _2 counterR
     ]
