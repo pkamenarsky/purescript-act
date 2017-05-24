@@ -83,48 +83,57 @@ interpretEffect this m = runFreeM go m
     go (GetHTTP url next) = do
       pure $ next "Result"
 
-type Element pst st = R.ReactElement
+type Element st = R.ReactElement
 
-type Props pst st = P.Props
+type Props st = P.Props
 
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
-
-type ChildComponent eff pst st =
-  { render :: (EffectM eff pst st Unit -> Handler st) -> st -> Element pst st
-  }
-
-type Component eff st = forall pst. ChildComponent eff pst st
-
-elementIndex :: forall pst st. Int -> Props pst st
-elementIndex = P.unsafeMkProps "data-element-index" <<< show
-
-onClick :: forall eff props state result. (R.Event -> R.EventHandlerContext eff props state result) -> P.Props
-onClick = P.onClick
-
-div :: forall pst st. Array (Props pst st) -> Array (Element pst st) -> Element pst st
-div = R.div
-
-zoom :: forall eff ppst pst st. Lens' pst st -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ChildComponent eff pst st -> Element ppst pst
-zoom lns effect pst cmp = cmp.render (\e -> effect (mapEffectM lns e)) (view lns pst) 
-
-foreach :: forall eff ppst pst st. Lens' pst (Array st) -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> ((pst -> pst) -> ChildComponent eff pst st) -> Array (Element ppst pst)
-foreach lns effect pst cmp = do
-  Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ (cmp (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr))).render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
-  where
-    items = view lns pst
-
-foreach_ :: forall eff ppst pst st. Lens' pst (Array st) -> (EffectM eff ppst pst Unit -> Handler pst) -> pst -> (ChildComponent eff pst st) -> Array (Element ppst pst)
-foreach_ lns effect pst cmp = do
-  Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ cmp.render (\e -> effect (mapEffectM (lensAt index >>> lns) e)) (view (lensAt index >>> lns) pst)
-  where
-    items = view lns pst
 
 lensAt :: forall a. Int -> Lens' (Array a) a
 lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpdateAt index)
 
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
+
+--------------------------------------------------------------------------------
+
+type Component eff st =
+  { render :: ((st -> st) -> Handler st) -> st -> Element st
+  }
+
+zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> Component eff stt -> Component eff st
+zoomC lns effect cmp =
+  { render: \effect st -> cmp.render (\f -> effect (over lns f)) (view lns st)
+  }
+
+zoom :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> Component eff stt -> Element st
+zoom lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
+
+foreachU_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> Component eff stt -> Array (Element st)
+foreachU_ lns effect st cmp = do
+  Tuple index item <- zip (range 0 (length items - 1)) items
+  pure $ (cmp' index).render effect st
+  where
+    items = view lns st
+    cmp' index = zoomC (lensAt index >>> lns) effect cmp
+
+foreach :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> Component eff st) -> Array (Element st)
+foreach lns effect st f = do
+  Tuple index item <- zip (range 0 (length items - 1)) items
+  pure $ (cmp index).render effect st
+  where
+    items = view lns st
+    cmp index = f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lensAt index >>> lns)
+
+--------------------------------------------------------------------------------
+
+elementIndex :: forall st. Int -> Props st
+elementIndex = P.unsafeMkProps "data-element-index" <<< show
+
+onClick :: forall eff props state result. (R.Event -> R.EventHandlerContext eff props state result) -> P.Props
+onClick = P.onClick
+
+div :: forall st. Array (Props st) -> Array (Element st) -> Element st
+div = R.div
 
 unitLens :: forall a. Lens' a Unit
 unitLens = lens (const unit) (\s _ -> s)
@@ -138,23 +147,15 @@ getElementAllChildren e = do
   cs' <- concat <$> traverse getElementAllChildren cs
   pure $ cs <> cs'
 
-mkSpecU :: forall eff st. st -> ComponentU Unit st -> R.ReactSpec Unit st eff
-mkSpecU st cmp = R.spec st \this -> do
+mkSpec :: forall eff st. st -> Component Unit st -> R.ReactSpec Unit st eff
+mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   let e = cmp.render (R.transformState this) st'
   pure e
 
-mkSpec :: forall eff st. st -> Component eff st -> R.ReactSpec Unit st eff
-mkSpec st cmp = R.spec st \this -> do
-  st' <- R.readState this
-  let e = cmp.render (unsafeCoerce interpretEffect $ this) st'
-  -- ch <- getElementAllChildren e
-  -- _ <- traceAnyM ch
-  pure (cmp.render (unsafeCoerce interpretEffect $ this) st')
-
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= render ui)
-  where ui = R.createFactory (R.createClass (mkSpecU (Tuple 666 []) listU)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple 666 []) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -162,56 +163,6 @@ main = void (elm' >>= render ui)
           doc <- document win
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
           pure $ unsafePartial fromJust elm
-
---------------------------------------------------------------------------------
-
-deleteButton :: forall eff pst. (pst -> pst) -> ChildComponent eff pst Unit
-deleteButton delete =
-  { render: \effect _ -> div [ P.onClick \_ -> effect $ modifyParent delete ] [ R.text "delete" ]
-  }
-
-counter :: forall eff st. Lens' st Int -> (st -> st) -> ChildComponent eff st Int
-counter lns delete =
-  { render: \effect st ->
-     div [ elementIndex 666 ]
-       [ div [ P.onClick \_ -> effect dinc ] [ R.text "++" ]
-       , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "--" ]
-       , div [ P.onClick \_ -> effect (modifyParent delete) ] [ R.text "delete" ]
-       , (deleteButton (over undefined delete)).render (\e -> effect (mapEffectM unitLens e)) unit
-       ]
-  }
-  where
-    one = 1
-    dinc = do
-      modify (_ + one)
-      modify (_ + 1)
-      res <- getHTTP' "http://google.com"
-      when (res == Just "Result'") (modify (_ + 1))
-      pure unit
-
-counter_ :: forall eff. Component eff Int
-counter_ =
-  { render: \effect st ->
-     div [ ]
-       [ div [ P.onClick \_ -> effect (modify (_ + 1)) ] [ R.text "+" ]
-       , div [ ] [ R.text $ show st ]
-       , div [ P.onClick \_ -> effect (modify (_ - 1)) ] [ R.text "-" ]
-       ]
-  }
-
-list :: forall eff. Component eff (Tuple String (Array Int))
-list =
-  { render: \effect st ->
-     div
-       [ ] $ concat
-       [ [ div [ P.onClick \_ -> effect (modify (\(Tuple str arr) -> Tuple str (cons 0 arr))) ] [ R.text "+" ]
-         ]
-       , foreach _2 effect st (counter undefined)
-       , foreach_ _2 effect st counter_
-       ]
-
-  }
 
 --------------------------------------------------------------------------------
 
@@ -228,56 +179,26 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 
 --------------------------------------------------------------------------------
 
-type ComponentU eff st =
-  { render :: ((st -> st) -> Handler st) -> st -> Element Unit st
-  }
-
-zoomC :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> ComponentU eff stt -> ComponentU eff st
-zoomC lns effect cmp =
-  { render: \effect st -> cmp.render (\f -> effect (over lns f)) (view lns st)
-  }
-
-zoomU :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Element Unit st
-zoomU lns effect st cmp = cmp.render (\e -> effect (over lns e)) (view lns st)
-
-foreachU_ :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> ComponentU eff stt -> Array (Element Unit st)
-foreachU_ lns effect st cmp = do
-  Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ (cmp' index).render effect st
-  where
-    items = view lns st
-    cmp' index = zoomC (lensAt index >>> lns) effect cmp
-
-foreachU :: forall eff st stt. Lens' st (Array stt) -> ((st -> st) -> Handler st) -> st -> (Int -> (st -> st) -> Lens' st stt -> ComponentU eff st) -> Array (Element Unit st)
-foreachU lns effect st f = do
-  Tuple index item <- zip (range 0 (length items - 1)) items
-  pure $ (cmp index).render effect st
-  where
-    items = view lns st
-    cmp index = f index (over lns (\arr -> unsafePartial $ fromJust $ deleteAt index arr)) (lensAt index >>> lns)
-
---------------------------------------------------------------------------------
-
-testU :: forall st eff. Lens' st String -> (st -> st) -> ComponentU eff st
-testU lns delete =
+test :: forall st eff. Lens' st String -> (st -> st) -> Component eff st
+test lns delete =
   { render: \effect st -> div [ P.onClick \_ -> effect delete ] [ R.text (view lns st) ]
   }
 
-deleteButtonU :: forall st eff. (st -> st) -> ComponentU eff st
-deleteButtonU delete =
+deleteButton :: forall st eff. (st -> st) -> Component eff st
+deleteButton delete =
   { render: \effect a -> div [ P.onClick \_ -> effect delete ] [ R.text "Delete" ]
   }
 
-deleteButtonUst :: forall st eff. (st -> st) -> Lens' st Unit -> ComponentU eff st
+deleteButtonUst :: forall st eff. (st -> st) -> Lens' st Unit -> Component eff st
 deleteButtonUst delete lns =
   { render: \effect a -> div [ P.onClick \_ -> effect delete ] [ R.text "Delete" ]
   }
 
-nested :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> (((stt -> stt) -> Handler st) -> stt -> Element Unit st) -> Element Unit st
+nested :: forall eff st stt. Lens' st stt -> ((st -> st) -> Handler st) -> st -> (((stt -> stt) -> Handler st) -> stt -> Element st) -> Element st
 nested lns effect st f = f (\f -> effect (over lns f)) (view lns st)
 
-counterU_ :: forall eff st. (st -> st) -> Lens' st Int -> ComponentU eff st
-counterU_ delete lns =
+counter_ :: forall eff st. (st -> st) -> Lens' st Int -> Component eff st
+counter_ delete lns =
   { render: \effectPrn stPrn -> nested lns effectPrn stPrn \effect st ->
      div [ elementIndex 666 ]
        [ div [ P.onClick \_ -> effect (_ + 1) ] [ R.text "++" ]
@@ -288,8 +209,8 @@ counterU_ delete lns =
        ]
   }
 
-counterU :: forall eff. ComponentU eff Int
-counterU =
+counter :: forall eff. Component eff Int
+counter =
   { render: \effect st ->
      div [ elementIndex 666 ]
        [ div [ P.onClick \_ -> effect (_ + 1) ] [ R.text "++" ]
@@ -298,15 +219,15 @@ counterU =
        ]
   }
 
-listU :: forall eff. ComponentU eff (Tuple Int (Array Int))
-listU =
+list :: forall eff. Component eff (Tuple Int (Array Int))
+list =
   { render: \effect st ->
      div
        [ ] $ concat
        [ [ div [ P.onClick \_ -> effect (\(Tuple str arr) -> Tuple str (cons 0 arr)) ] [ R.text "+" ]
          ]
-       , foreachU _2 effect st \_ d l -> zoomC l effect counterU
-       , foreachU _2 effect st \_ d l -> counterU_ d l
-       , [ zoomU _1 effect st counterU ]
+       , foreach _2 effect st \_ d l -> zoomC l effect counter
+       , foreach _2 effect st \_ d l -> counter_ d l
+       , [ zoom _1 effect st counter ]
        ]
   }
