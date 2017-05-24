@@ -6,10 +6,10 @@ import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
+import Data.Exists
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
-import Data.Map
 import Data.Lens.Index
 import Data.Tuple
 import Unsafe.Coerce
@@ -44,6 +44,9 @@ unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
 
 unitLens :: forall a. Lens' a Unit
 unitLens = lens (const unit) (\s _ -> s)
+
+idLens :: forall a. Lens' a a
+idLens = lens id (\_ s -> s)
 
 --------------------------------------------------------------------------------
 
@@ -95,6 +98,14 @@ interpretEffect this m = runFreeM go m
 
 --------------------------------------------------------------------------------
 
+data EffTree' eff st stt = EffTree (Lens' st stt) (Array (EffTreeNode eff stt))
+
+type EffTree eff st = Exists (EffTree' eff st)
+
+data EffTreeNode eff st = EffTreeNode (EffTree eff st) (R.Event -> Effect eff st Unit)
+
+--------------------------------------------------------------------------------
+
 type Index = Array Int
 
 type Element st = R.ReactElement
@@ -102,7 +113,7 @@ type Element st = R.ReactElement
 type Handler st = R.EventHandlerContext R.ReadWrite Unit st Unit
 
 type Component eff st =
-  { render :: Index -> (Index -> Effect eff st Unit -> Handler st) -> st -> Tuple (Map Index (Effect eff st Unit)) (Array R.ReactElement)
+  { render :: Index -> (Index -> Effect eff st Unit -> Handler st) -> st -> Tuple (EffTree eff st) (Array R.ReactElement)
   -- , onfetchstart :: st -> st
   -- , onfetchend :: st -> st
   }
@@ -112,8 +123,8 @@ type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 state :: forall eff st. (st -> Component eff st) -> Component eff st
 state f = { render: \index effect st -> (f st).render index effect st }
 
-zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
-zoom lns cmp = { render: \index effect st -> ?_ $ cmp.render index (\index' e -> effect index' (mapEffect lns e)) (view lns st) }
+-- zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
+-- zoom lns cmp = { render: \index effect st -> ?_ $ cmp.render index (\index' e -> effect index' (mapEffect lns e)) (view lns st) }
 
 -- zoomProps :: forall eff st stt. Lens' st stt -> Props eff stt -> Props eff st
 -- zoomProps lns effect f = effect \b -> f (mapEffect lns b)
@@ -147,12 +158,12 @@ onClick f effect = P.onClick \e -> effect (f e)
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render }
   where
-   render index effect st = Tuple (unions effs) [ R.div (map (\p -> p (effect index)) props) (concat children') ]
+   render index effect st = Tuple (mkExists (EffTree idLens undefined)) [ R.div (map (\p -> p (effect index)) props) (concat children') ]
      where
        Tuple effs children' = unzip $ map (\(Tuple chindex ch) -> ch.render (cons chindex index) effect st) (zip (range 0 (length children - 1)) children)
 
 text :: forall eff st. String -> Component eff st
-text str = { render: \_ _ _ -> Tuple empty [ R.text str ] }
+text str = { render: \_ _ _ -> Tuple (mkExists (EffTree idLens [])) [ R.text str ] }
 
 --------------------------------------------------------------------------------
 
