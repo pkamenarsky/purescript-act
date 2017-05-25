@@ -7,12 +7,15 @@ import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
+import Data.Exists
+import Data.Generic.Rep
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
 import Data.Map
 import Data.Lens.Index
 import Data.Tuple
+import Type.Proxy
 import Unsafe.Coerce
 import Prelude
 import DOM as D
@@ -178,6 +181,8 @@ main = void (elm' >>= RD.render ui)
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
+          -- void $ traceAnyM $ show $ from (undefined :: Remote Users)
+          mkPairs (undefined :: Users') (undefined :: Users')
           win <- window
           doc <- document win
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
@@ -232,10 +237,23 @@ newtype Identity a = Identity a
 type Remote st = st Masked Identity
 type Local st = st Identity Masked
 
+type CurrentSession = { currentSession :: String }
+
 data Users local remote = Users
-  { users :: local (Array User)
-  , sessions :: remote (Array Session)
+  { users          :: local  (Array User)
+
+  , sessions       :: remote (Array Session)
+  , currentSession :: remote CurrentSession
   }
+
+data Users' = Users'
+  { users :: Array User
+  , sessions :: Array Session
+  }
+
+derive instance genericUsers :: Generic (Users Masked Identity) _
+
+derive instance genericUsers' :: Generic Users' _
 
 remotely :: forall st a b. Remote st -> a -> StaticPtr (a -> Remote st -> b) -> b
 remotely = undefined
@@ -267,3 +285,49 @@ remoteState = undefined
 
 userComponent' :: Component' Unit Users
 userComponent' = div' [] [] -- [ remoteState getUser 0 (text' <<< fromMaybe "") ]
+
+--------------------------------------------------------------------------------
+
+class Pairable a where
+  pair :: forall eff. a -> a -> Eff eff Unit
+
+class GenericPair a where
+  gPair :: forall eff. a -> a -> Eff eff Unit
+
+instance genericPairNoConstructors :: GenericPair NoConstructors where
+  gPair _ _ = pure unit
+
+instance genericPairNoArguments :: GenericPair NoArguments where
+  gPair _ _ = pure unit
+
+instance genericPairSum :: (GenericPair a, GenericPair b) => GenericPair (Sum a b) where
+  gPair (Inl a1) (Inl a2) = gPair a1 a2
+  gPair (Inr b1) (Inr b2) = gPair b1 b2
+  gPair _ _ = pure unit
+
+instance genericPairProduct :: (GenericPair a, GenericPair b) => GenericPair (Product a b) where
+  gPair (Product a1 b1) (Product a2 b2) = do
+    gPair a1 a2
+    gPair b1 b2
+
+instance genericPairConstructor :: GenericPair a => GenericPair (Constructor name a) where
+  gPair (Constructor a1) (Constructor a2) = gPair a1 a2
+
+instance genericPairArgument :: Pairable a => GenericPair (Argument a) where
+  gPair (Argument a1) (Argument a2) = pair a1 a2
+
+instance genericPairRec :: GenericPair a => GenericPair (Rec a) where
+  gPair (Rec a1) (Rec a2) = gPair a1 a2
+
+instance genericPairFieldArray :: Pairable a => GenericPair (Field name a) where
+  gPair (Field a1) (Field a2) = pair a1 a2
+
+mkPairs :: forall eff st rep. Generic st rep => GenericPair rep => st -> st -> Eff eff Unit
+mkPairs x y = gPair (from x) (from y)
+
+--------------------------------------------------------------------------------
+
+instance pairableArray :: Pairable (Array a) where
+  pair a b = do
+    void $ traceAnyM "Array"
+    pure unit
