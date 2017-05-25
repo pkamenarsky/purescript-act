@@ -10,6 +10,7 @@
       "react",
       "react-dom",
       "tuples",
+      "transformers",
       "profunctor-lenses"
     ]
 }

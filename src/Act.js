@@ -7,12 +7,24 @@ exports.traceAny = function (x) {
   };
 };
 
-var static_ptr = 0;
+// https://stackoverflow.com/a/7616484
+function hashCode() {
+  var hash = 0, i, chr;
+  if (this.length === 0) return hash;
+  for (i = 0; i < this.length; i++) {
+    chr   = this.charCodeAt(i);
+    hash  = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
+
 var static_ptr_table = {};
 
 exports.static_ = function(a) {
-  static_ptr_table[static_ptr] = a;
-  return static_ptr++;
+  var hash = hashCode(a.toString());
+  static_ptr_table[hash] = a;
+  return hash;
 }
 
 exports.derefStatic_ = function(ptr) {

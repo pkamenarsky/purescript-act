@@ -1,6 +1,7 @@
 module Act where
 
 import Control.Monad
+import Control.Monad.State
 import Control.Monad.Eff
 import Control.Monad.Free
 import Data.Argonaut.Core
@@ -9,6 +10,7 @@ import Data.Functor
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
+import Data.Map
 import Data.Lens.Index
 import Data.Tuple
 import Unsafe.Coerce
@@ -46,13 +48,17 @@ unitLens = lens (const unit) (\s _ -> s)
 
 --------------------------------------------------------------------------------
 
+type StaticPtrTable = forall a. Map Int a
+
+type Static = State StaticPtrTable
+
 data StaticPtr a = StaticPtr Int
 
 foreign import static_ :: forall a. a -> Int
-foreign import derefStatic_ :: forall a. Int -> a
+foreign import derefStatic_ :: forall a. Int -> StaticPtr a
 
 static :: forall a. a -> StaticPtr a
-static = static_ >>> StaticPtr
+static = StaticPtr <<< static_
 
 derefStatic :: forall a. StaticPtr a -> a
 derefStatic (StaticPtr ptr) = derefStatic_ ptr
@@ -214,3 +220,72 @@ list =
     ajax = do
       res <- getHTTP "http://google.com"
       modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
+
+--------------------------------------------------------------------------------
+
+type User = { name :: String, age :: Int }
+type Session = { session :: String }
+
+data Masked a = Masked
+newtype Identity a = Identity a
+
+type Remote st = st Masked Identity
+type Local st = st Identity Masked
+
+data Users local remote = Users
+  { users :: local (Array User)
+  , sessions :: remote (Array Session)
+  }
+
+remotely :: forall st a b. a -> StaticPtr (a -> Remote st -> b) -> b
+remotely = undefined
+
+-- modifyRemotely :: forall st a b. a -> StaticPtr (a -> st Masked Identity -> Tuple (st Masked Identity) b) -> b
+-- modifyRemotely = undefined
+
+data Effect' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) a
+
+data Handler' (st :: (Type -> Type) -> (Type -> Type) -> Type)
+
+type Component' remotes eff (st :: (Type -> Type) -> (Type -> Type) -> Type) =
+  { render :: (Effect' eff st Unit -> Handler' st) -> remotes -> Local st -> Array R.ReactElement
+  , remotes :: Static remotes
+  }
+
+data Props' eff (st :: (Type -> Type) -> (Type -> Type) -> Type)
+
+div' :: forall eff remotes st. Array (Props' eff st) -> Array (Component' remotes eff st) -> Component' remotes eff st
+div' props children = undefined
+
+text' :: forall eff remotes st. String -> Component' remotes eff st
+text' str = undefined
+
+getUser :: Int -> Remote Users -> Maybe String
+getUser userId (Users users) = undefined
+
+userComponent :: Component' _ Unit Users
+userComponent =
+  { render: \effect remotes st ->
+      [ R.div [] [ R.text $ fromMaybe "" $ remotely 0 remotes.getUser ] ]
+  , remotes: do
+      getUser <- static getUser
+      pure { getUser }
+  }
+
+data UsersRemotes = UsersRemotes
+  { getUser :: StaticPtr (Int -> Remote Users -> Maybe String)
+  }
+
+data Proxy (st :: (Type -> Type) -> (Type -> Type) -> Type)
+
+class Remotes (st :: (Type -> Type) -> (Type -> Type) -> Type) remotes | st -> remotes where
+  remotes :: Proxy st -> Static remotes
+
+instance userRemotes :: Remotes Users UsersRemotes where
+  remotes = undefined
+
+remoteState :: forall eff remotes st a b. Remotes st remotes => (remotes -> StaticPtr (a -> Remote st -> b)) -> a -> (b -> Component' remotes eff st) -> Component' remotes eff st
+remoteState = undefined
+
+userComponent' :: Component' UsersRemotes Unit Users
+userComponent' = div' [] [ remoteState (\(UsersRemotes remotes) -> remotes.getUser) 0 (text' <<< fromMaybe "") ]
