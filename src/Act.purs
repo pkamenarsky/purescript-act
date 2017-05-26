@@ -71,6 +71,7 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 
 data EffectF eff st next =
     Modify (st -> st) next
+  | ModifyRemotely (StaticPtr (Json -> st -> (Tuple st Json))) Json (Json -> next)
   | Effect Json (Json -> Eff eff Json) (Json -> next)
 
 derive instance functorEffectF :: Functor (EffectF eff st)
@@ -78,6 +79,7 @@ derive instance functorEffectF :: Functor (EffectF eff st)
 type Effect eff st = Free (EffectF eff st)
 
 mapEffectF :: forall eff st stt next. Lens' st stt -> EffectF eff stt next -> EffectF eff st next
+mapEffectF lns (ModifyRemotely a f next) = undefined
 mapEffectF lns (Modify f next) = Modify (over lns f) next
 mapEffectF lns (Effect json eff next) = Effect json eff next
 
@@ -97,6 +99,7 @@ interpretEffect this m = runFreeM go m
       _ <- (unsafeCoerce R.transformState) this f
       void $ traceAnyM $ static f
       pure next
+    go (ModifyRemotely f a next) = undefined
     go (Effect json eff next) = do
       -- dump json here
       res <- unsafeCoerce $ eff json
@@ -176,9 +179,15 @@ mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
+mkSpec' :: forall eff st. Local st -> Remote st -> Component' eff st -> R.ReactSpec Unit (Local st) _
+mkSpec' lst rst cmp = R.spec lst \this -> do
+  st' <- R.readState this
+  pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st' rst)
+
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
+  -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec' localUsers remoteUsers userComponent')) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -247,6 +256,12 @@ data Users local remote = Users
   , currentSession :: remote CurrentSession
   }
 
+localUsers :: Local Users
+localUsers = Users { users: Identity [], sessions: Masked, currentSession: Masked }
+
+remoteUsers :: Remote Users
+remoteUsers = Users { users: Masked, sessions: Identity [], currentSession: Identity { currentSession: "" } }
+
 data A = A
   { b :: Array String
   , c :: Array { d :: String }
@@ -257,38 +272,32 @@ a = A { b: [], c: [] }
 
 derive instance genericUsers :: Generic (Users Masked Identity) _
 
-derive instance genericUsers' :: Generic A _
-
-remotely :: forall st a b. Remote st -> a -> StaticPtr (a -> Remote st -> b) -> b
-remotely = undefined
-
--- modifyRemotely :: forall st a b. a -> StaticPtr (a -> st Masked Identity -> Tuple (st Masked Identity) b) -> b
--- modifyRemotely = undefined
+derive instance genericA :: Generic A _
 
 data Effect' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) a
 
 data Handler' (st :: (Type -> Type) -> (Type -> Type) -> Type)
 
 type Component' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) =
-  { render :: (Effect' eff st Unit -> Handler' st) -> Local st -> Array R.ReactElement
+  { render :: (Effect' eff st Unit -> Handler' st) -> Local st -> Remote st -> Array R.ReactElement
   }
 
-data Props' eff (st :: (Type -> Type) -> (Type -> Type) -> Type)
+type Props' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) = (Effect' eff st Unit -> Handler' st) -> P.Props
 
 div' :: forall eff remotes st. Array (Props' eff st) -> Array (Component' eff st) -> Component' eff st
-div' props children = undefined
+div' props children = { render: \effect lst rst -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect lst rst) children) ] }
 
 text' :: forall eff st. String -> Component' eff st
-text' str = undefined
+text' str = { render: \_ _ _ -> [ R.text str ] }
 
 getUser :: StaticPtr (Int -> Remote Users -> Maybe String)
-getUser = static \a st -> Just "user"
+getUser = static \a st -> Just ("user" <> show a)
 
 remoteState :: forall eff st a b. (StaticPtr (a -> Remote st -> b)) -> a -> (b -> Component' eff st) -> Component' eff st
-remoteState = undefined
+remoteState ptr a f = { render: \effect lst rst -> (f $ derefStatic ptr a rst).render effect lst rst }
 
-userComponent' :: Component' Unit Users
-userComponent' = div' [] [] -- [ remoteState getUser 0 (text' <<< fromMaybe "") ]
+userComponent' :: forall eff. Component' eff Users
+userComponent' = div' [] [ remoteState getUser 0 (text' <<< fromMaybe "") ]
 
 --------------------------------------------------------------------------------
 
