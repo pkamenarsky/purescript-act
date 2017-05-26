@@ -290,14 +290,14 @@ div' props children = { render: \effect lst rst -> [ R.div (map (\p -> p effect)
 text' :: forall eff st. String -> Component' eff st
 text' str = { render: \_ _ _ -> [ R.text str ] }
 
-getUser :: StaticPtr (Int -> Remote Users -> Maybe String)
-getUser = static \a st -> Just ("user" <> show a)
+getUser :: StaticPtr (String -> Remote Users -> Maybe String)
+getUser = static \a st -> Just a
 
 remoteState :: forall eff st a b. (StaticPtr (a -> Remote st -> b)) -> a -> (b -> Component' eff st) -> Component' eff st
 remoteState ptr a f = { render: \effect lst rst -> (f $ derefStatic ptr a rst).render effect lst rst }
 
 userComponent' :: forall eff. Component' eff Users
-userComponent' = div' [] [ remoteState getUser 0 (text' <<< fromMaybe "") ]
+userComponent' = div' [] [ remoteState getUser "(y)" (text' <<< fromMaybe "") ]
 
 --------------------------------------------------------------------------------
 
