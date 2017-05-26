@@ -182,8 +182,8 @@ main = void (elm' >>= RD.render ui)
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
-          void $ traceAnyM $ show $ from (undefined :: A)
-          -- mkPairs users' users'
+          -- void $ traceAnyM $ show $ from (undefined :: A)
+          mkPairs a a
           win <- window
           doc <- document win
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
@@ -248,13 +248,12 @@ data Users local remote = Users
   }
 
 data A = A
-  { -- users :: Array (Array User)
-  -- , sessions :: Array Session
-  b :: { c :: Array String }
+  { b :: Array String
+  , c :: Array { d :: String }
   }
 
--- users' :: Users'
--- users' = Users' { users: [], sessions: [], currentSession: { sessions: [] } }
+a :: A
+a = A { b: [], c: [] }
 
 derive instance genericUsers :: Generic (Users Masked Identity) _
 
@@ -324,14 +323,10 @@ instance genericPairArgument :: Pairable a => GenericPair (Argument a) where
 instance genericPairRec :: GenericPair a => GenericPair (Rec a) where
   gPair (Rec a1) (Rec a2) = gPair a1 a2
 
-instance genericPairFieldArrayP :: (IsSymbol name) => GenericPair (Field name (Rec a)) where
+instance genericPairFieldArray :: (Pairable a, IsSymbol name) => GenericPair (Field name a) where
   gPair (Field a1) (Field a2) = do
     void $ traceAnyM $ "Field: " <> reflectSymbol (SProxy :: SProxy name)
-
--- instance genericPairFieldArray :: (Pairable a, IsSymbol name) => GenericPair (Field name a) where
---   gPair (Field a1) (Field a2) = do
---     void $ traceAnyM $ "Field: " <> reflectSymbol (SProxy :: SProxy name)
---     pair a1 a2
+    pair a1 a2
 
 mkPairs :: forall eff st rep. Generic st rep => GenericPair rep => st -> st -> Eff eff Unit
 mkPairs x y = gPair (from x) (from y)
