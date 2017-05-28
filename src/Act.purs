@@ -244,23 +244,29 @@ type Session = { session :: String }
 data Masked a = Masked
 newtype Identity a = Identity a
 
+unwrap :: forall a. Identity a -> a
+unwrap = undefined
+
 type Remote st = st Masked Identity
 type Local st = st Identity Masked
 
-type CurrentSession = { currentSession :: String }
+data CurrentSession (local :: Type -> Type) (remote :: Type -> Type) = CurrentSession { currentSession :: remote String }
 
 data Users local remote = Users
   { users          :: local  (Array User)
 
   , sessions       :: remote (Array Session)
-  , currentSession :: remote CurrentSession
+  , currentSession :: CurrentSession local remote
   }
 
+_currentSession :: forall local remote. Lens' (Users local remote) (CurrentSession local remote)
+_currentSession = undefined
+
 localUsers :: Local Users
-localUsers = Users { users: Identity [], sessions: Masked, currentSession: Masked }
+localUsers = Users { users: Identity [], sessions: Masked, currentSession: CurrentSession { currentSession: Masked } }
 
 remoteUsers :: Remote Users
-remoteUsers = Users { users: Masked, sessions: Identity [], currentSession: Identity { currentSession: "" } }
+remoteUsers = Users { users: Masked, sessions: Identity [], currentSession: CurrentSession { currentSession: Identity "" } }
 
 data A = A
   { b :: Array String
@@ -284,20 +290,23 @@ type Component' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) =
 
 type Props' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) = (Effect' eff st Unit -> Handler' st) -> P.Props
 
+zoom' :: forall eff local remote st stt. Lens' (st local remote) (stt local remote) -> Component' eff stt -> Component' eff st
+zoom' lns cmp = undefined
+
 div' :: forall eff remotes st. Array (Props' eff st) -> Array (Component' eff st) -> Component' eff st
 div' props children = { render: \effect lst rst -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect lst rst) children) ] }
 
 text' :: forall eff st. String -> Component' eff st
 text' str = { render: \_ _ _ -> [ R.text str ] }
 
-getUser :: StaticPtr (String -> Remote Users -> Maybe String)
-getUser = static \a st -> Just a
+getUser :: StaticPtr (String -> Remote CurrentSession -> Maybe String)
+getUser = static \a (CurrentSession st) -> Just (unwrap st.currentSession <> a)
 
 remoteState :: forall eff st a b. (StaticPtr (a -> Remote st -> b)) -> a -> (b -> Component' eff st) -> Component' eff st
 remoteState ptr a f = { render: \effect lst rst -> (f $ derefStatic ptr a rst).render effect lst rst }
 
 userComponent' :: forall eff. Component' eff Users
-userComponent' = div' [] [ remoteState getUser "(y)" (text' <<< fromMaybe "") ]
+userComponent' = div' [] [ zoom' _currentSession $ remoteState getUser "(y)" (text' <<< fromMaybe "") ]
 
 --------------------------------------------------------------------------------
 
