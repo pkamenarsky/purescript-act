@@ -355,3 +355,72 @@ instance pairableArray :: Pairable (Array a) where
   pair a b = do
     void $ traceAnyM "Array trace"
     pure unit
+
+--------------------------------------------------------------------------------
+
+data UserG = UserG
+  { name :: Guarded (AdminP || UserP && AdminP) String
+  }
+
+data Guarded perm a = Guarded a
+
+data Permission read write create = Permission
+  { read :: read
+  , write :: write
+  , create :: create
+  }
+
+data AdminP
+data UserP
+data GuestP
+
+data Or a b
+
+infixl 4 type Or as ||
+
+data And a b = And a b
+
+infixl 4 type And as &&
+
+type WritePerson = And UserP AdminP
+
+data Proof perm = Proof
+
+coerceProof :: forall perm perm'. Proof perm -> Proof perm'
+coerceProof = undefined
+
+data Either a b = Left a | Right b
+
+instance fe :: Functor (Either a) where
+  map = undefined
+
+data Proxy a = Proxy
+
+class Prove perm perm' where
+  prove' :: Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
+
+instance prove0 :: Prove a a where
+  prove' _ _ = Right Proof
+
+-- instance proveOrA :: Prove (a || b) a where
+--   prove' _ _ = Right Proof
+-- 
+-- instance proveOrB :: Prove (a || b) b where
+--   prove' _ _ = Right Proof
+
+-- instance proveOrOtherA :: (Prove a c) => Prove (a || b) c where
+--   prove' _ _ = coerceProof <$> prove' (Proxy :: Proxy a) (Proxy :: Proxy c)
+
+instance proveOrOtherB :: (Prove b c) => Prove (a || b) c where
+  prove' _ _ = coerceProof <$> prove' (Proxy :: Proxy b) (Proxy :: Proxy c)
+
+instance proveAnd0 :: Prove (a && b) (a && b) where
+  prove' _ _ = Right Proof
+
+instance proveAnd1 :: Prove (a && b) (b && a) where
+  prove' _ _ = Right Proof
+
+prove :: forall perm perm'. Prove perm perm' => Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
+prove = prove'
+
+test = prove (Proxy :: Proxy (GuestP || (AdminP && UserP))) (Proxy :: Proxy (UserP && AdminP))
