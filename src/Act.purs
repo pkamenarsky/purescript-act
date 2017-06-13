@@ -396,31 +396,85 @@ instance fe :: Functor (Either a) where
 
 data Proxy a = Proxy
 
-class Prove perm perm' where
-  prove' :: Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
-
-instance prove0 :: Prove a a where
-  prove' _ _ = Right Proof
+-- instance prove1 :: Prove a b where
+--   prove' _ _ = Left unit
 
 -- instance proveOrA :: Prove (a || b) a where
 --   prove' _ _ = Right Proof
 -- 
 -- instance proveOrB :: Prove (a || b) b where
 --   prove' _ _ = Right Proof
+-- 
+-- instance proveOrAnd1 :: Prove (a || b) (a && c) where
+--   prove' _ _ = Left unit
+-- 
+-- instance proveOrAnd11 :: Prove (a || b) (c && a) where
+--   prove' _ _ = Left unit
+-- 
+-- instance proveOrAnd2 :: Prove (a || b) (b && c) where
+--   prove' _ _ = Left unit
+-- 
+-- instance proveOrAnd22 :: Prove (a || b) (c && b) where
+--   prove' _ _ = Left unit
 
--- instance proveOrOtherA :: (Prove a c) => Prove (a || b) c where
---   prove' _ _ = coerceProof <$> prove' (Proxy :: Proxy a) (Proxy :: Proxy c)
+-- instance proveOrA :: Prove a (a || b) where
+--   prove' _ _ = Right Proof
+-- 
+-- instance proveOrB :: Prove b (a || b) where
+--   prove' _ _ = Right Proof
 
-instance proveOrOtherB :: (Prove b c) => Prove (a || b) c where
-  prove' _ _ = coerceProof <$> prove' (Proxy :: Proxy b) (Proxy :: Proxy c)
+data Nil
+data Cons a b = Cons a b
 
-instance proveAnd0 :: Prove (a && b) (a && b) where
+infixr 4 type Cons as :::
+
+class ElemOf a b where
+  elemOf :: Proxy a -> Proxy b -> Unit
+
+instance elemOfA :: ElemOf a (Cons a b) where
+  elemOf _ _ = unit
+
+instance elemOfB :: ElemOf a c => ElemOf a (Cons b c) where
+  elemOf _ _ = unit
+
+class Prove perm perm' where
+  prove' :: Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
+
+data W a
+
+instance prove0 :: ElemOf a b => Prove (W a) b where
   prove' _ _ = Right Proof
 
-instance proveAnd1 :: Prove (a && b) (b && a) where
+instance proveOrOtherA :: (Prove a c) => Prove (a || b) c where
+  prove' _ _ = undefined
+
+instance proveOrOtherB :: (Prove b c) => Prove (a || b) c where
+  prove' _ _ = undefined
+
+instance proveAnd0 :: (Prove a c, Prove b c) => Prove (a && b) c where
   prove' _ _ = Right Proof
 
 prove :: forall perm perm'. Prove perm perm' => Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
 prove = prove'
 
-test = prove (Proxy :: Proxy (GuestP || (AdminP && UserP))) (Proxy :: Proxy (UserP && AdminP))
+-- test = prove (Proxy :: Proxy (W GuestP || (W AdminP && W UserP))) (Proxy :: Proxy (AdminP ::: UserP ::: Nil))
+
+elem :: forall a b. ElemOf a b => Proxy a -> Proxy b -> Unit
+elem = undefined
+
+testElem = elem (Proxy :: Proxy Int) (Proxy :: Proxy (Int ::: Nil))
+
+class Remove a b c | a b -> c where
+  remove :: Proxy a -> Proxy b -> Proxy c
+
+instance remove0 :: Remove a Nil Nil where
+  remove _ _ = Proxy
+
+instance remove1 :: Remove a (Cons a b) b where
+  remove _ _ = Proxy
+
+instance remove2 :: Remove a c d => Remove a (Cons b c) (Cons b d) where
+  remove _ _ = Proxy
+
+testRemove :: _
+testRemove = remove (Proxy :: Proxy Int) (Proxy :: Proxy (Int ::: Char ::: Nil))
