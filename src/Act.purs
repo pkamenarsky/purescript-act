@@ -382,8 +382,6 @@ data And a b = And a b
 
 infixl 4 type And as &&
 
-data Proxy a = Proxy
-
 data W a
 
 data Nil
@@ -456,3 +454,38 @@ instance elimCons :: (Elim a c c', ElimList b c' d) => ElimList (Cons a b) c d w
 
 testElimList :: _
 testElimList = elimList (Proxy :: Proxy (W Char ::: W Boolean ::: W String ::: Nil)) (Proxy :: Proxy (W Int || (W String && (W Boolean && W Char))))
+
+--------------------------------------------------------------------------------
+
+pmodify :: forall perms permList a rest. (ElimList permList perms Unit) => { modify :: Proxy permList | rest } -> Lens' (Guarded perms a) a
+pmodify = undefined
+
+pread :: forall perms permList a rest. (ElimList permList perms Unit) => { read :: Proxy permList | rest } -> Guarded perms a -> a
+pread = undefined
+
+pcreate :: forall perms permList a rest. (ElimList permList perms Unit) => { create :: Proxy permList | rest } -> a -> Guarded perms a
+pcreate = undefined
+
+testPerm :: Lens' (Guarded (W String && W Int) Boolean) _
+testPerm = pmodify { modify: Proxy :: Proxy (W String ::: W Int ::: Nil) }
+
+--------------------------------------------------------------------------------
+
+data PMap perms k v
+
+-- returns Nothing if key already present
+minsert :: forall k v perms rest permList. (ElimList permList perms Unit) => Proxy permList -> k -> v -> PMap { insert :: perms | rest } k v -> Maybe (PMap { insert :: perms | rest } k v)
+minsert = undefined
+
+mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Proxy permList) -> k -> PMap { read :: perms | rest } k v -> Maybe v
+mlookup = undefined
+
+mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Proxy permList) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
+mmodify = undefined
+
+--------------------------------------------------------------------------------
+
+data Self a
+
+self :: forall a. Ord a => a -> a -> Maybe (Proxy (W (Self a)))
+self = undefined
