@@ -464,17 +464,45 @@ elem = undefined
 
 testElem = elem (Proxy :: Proxy Int) (Proxy :: Proxy (Int ::: Nil))
 
-class Remove a b c | a b -> c where
-  remove :: Proxy a -> Proxy b -> Proxy c
+--------------------------------------------------------------------------------
 
-instance remove0 :: Remove a Nil Nil where
-  remove _ _ = Proxy
+class ElimUnit a b | a -> b where
+  elimUnit :: Proxy a -> Proxy b
 
-instance remove1 :: Remove a (Cons a b) b where
-  remove _ _ = Proxy
+instance elimOp0 :: ElimUnit Unit Unit where
+  elimUnit _ = Proxy
 
-instance remove2 :: Remove a c d => Remove a (Cons b c) (Cons b d) where
-  remove _ _ = Proxy
+instance elimOp1 :: ElimUnit (W a) (W a) where
+  elimUnit _ = Proxy
 
-testRemove :: _
-testRemove = remove (Proxy :: Proxy Int) (Proxy :: Proxy (Int ::: Char ::: Nil))
+instance elimOp :: ElimUnit b c => ElimUnit (Unit && b) c where
+  elimUnit _ = Proxy
+
+instance elimOp2 :: ElimUnit b c => ElimUnit (b && Unit) c where
+  elimUnit _ = Proxy
+
+instance elimOp3 :: ElimUnit b c => ElimUnit (Unit || b) Unit where
+  elimUnit _ = Proxy
+
+instance elimOp4 :: ElimUnit b c => ElimUnit (b || Unit) Unit where
+  elimUnit _ = Proxy
+
+instance elimOp5 :: (ElimUnit b d, ElimUnit c e) => ElimUnit (op b c) (op d e) where
+  elimUnit _ = Proxy
+
+--------------------------------------------------------------------------------
+
+class Elim a b c | a b -> c where
+  elim :: Proxy a -> Proxy b -> Proxy c
+
+instance elimId :: Elim (W a) (W a) Unit where
+  elim _ _ = Proxy
+
+instance elimNotId :: Elim (W a) (W b) (W b) where
+  elim _ _ = Proxy
+
+instance elimOr :: (Elim a b d, Elim a c e, ElimUnit (op d e) g) => Elim a (op b c) g where
+  elim _ _ = Proxy
+
+testElim :: _
+testElim = elim (Proxy :: Proxy (W Char)) (Proxy :: Proxy (W Int || (W String || (W Boolean && W Char))))
