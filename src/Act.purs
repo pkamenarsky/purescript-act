@@ -382,46 +382,9 @@ data And a b = And a b
 
 infixl 4 type And as &&
 
-type WritePerson = And UserP AdminP
-
-data Proof perm = Proof
-
-coerceProof :: forall perm perm'. Proof perm -> Proof perm'
-coerceProof = undefined
-
-data Either a b = Left a | Right b
-
-instance fe :: Functor (Either a) where
-  map = undefined
-
 data Proxy a = Proxy
 
--- instance prove1 :: Prove a b where
---   prove' _ _ = Left unit
-
--- instance proveOrA :: Prove (a || b) a where
---   prove' _ _ = Right Proof
--- 
--- instance proveOrB :: Prove (a || b) b where
---   prove' _ _ = Right Proof
--- 
--- instance proveOrAnd1 :: Prove (a || b) (a && c) where
---   prove' _ _ = Left unit
--- 
--- instance proveOrAnd11 :: Prove (a || b) (c && a) where
---   prove' _ _ = Left unit
--- 
--- instance proveOrAnd2 :: Prove (a || b) (b && c) where
---   prove' _ _ = Left unit
--- 
--- instance proveOrAnd22 :: Prove (a || b) (c && b) where
---   prove' _ _ = Left unit
-
--- instance proveOrA :: Prove a (a || b) where
---   prove' _ _ = Right Proof
--- 
--- instance proveOrB :: Prove b (a || b) where
---   prove' _ _ = Right Proof
+data W a
 
 data Nil
 data Cons a b = Cons a b
@@ -437,33 +400,6 @@ instance elemOfA :: ElemOf a (Cons a b) where
 instance elemOfB :: ElemOf a c => ElemOf a (Cons b c) where
   elemOf _ _ = unit
 
-class Prove perm perm' where
-  prove' :: Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
-
-data W a
-
-instance prove0 :: ElemOf a b => Prove (W a) b where
-  prove' _ _ = Right Proof
-
-instance proveOrOtherA :: (Prove a c) => Prove (a || b) c where
-  prove' _ _ = undefined
-
-instance proveOrOtherB :: (Prove b c) => Prove (a || b) c where
-  prove' _ _ = undefined
-
-instance proveAnd0 :: (Prove a c, Prove b c) => Prove (a && b) c where
-  prove' _ _ = Right Proof
-
-prove :: forall perm perm'. Prove perm perm' => Proxy perm -> Proxy perm' -> Either Unit (Proof perm)
-prove = prove'
-
--- test = prove (Proxy :: Proxy (W GuestP || (W AdminP && W UserP))) (Proxy :: Proxy (AdminP ::: UserP ::: Nil))
-
-elem :: forall a b. ElemOf a b => Proxy a -> Proxy b -> Unit
-elem = undefined
-
-testElem = elem (Proxy :: Proxy Int) (Proxy :: Proxy (Int ::: Nil))
-
 --------------------------------------------------------------------------------
 
 class ElimUnit a b | a -> b where
@@ -475,19 +411,19 @@ instance elimOp0 :: ElimUnit Unit Unit where
 instance elimOp1 :: ElimUnit (W a) (W a) where
   elimUnit _ = Proxy
 
-instance elimOp :: ElimUnit b c => ElimUnit (Unit && b) c where
+instance elimOp2 :: ElimUnit b c => ElimUnit (Unit && b) c where
   elimUnit _ = Proxy
 
-instance elimOp2 :: ElimUnit b c => ElimUnit (b && Unit) c where
+instance elimOp3 :: ElimUnit b c => ElimUnit (b && Unit) c where
   elimUnit _ = Proxy
 
-instance elimOp3 :: ElimUnit b c => ElimUnit (Unit || b) Unit where
+instance elimOp4 :: ElimUnit b c => ElimUnit (Unit || b) Unit where
   elimUnit _ = Proxy
 
-instance elimOp4 :: ElimUnit b c => ElimUnit (b || Unit) Unit where
+instance elimOp5 :: ElimUnit b c => ElimUnit (b || Unit) Unit where
   elimUnit _ = Proxy
 
-instance elimOp5 :: (ElimUnit b d, ElimUnit c e) => ElimUnit (op b c) (op d e) where
+instance elimOp6 :: (ElimUnit b d, ElimUnit c e) => ElimUnit (op b c) (op d e) where
   elimUnit _ = Proxy
 
 --------------------------------------------------------------------------------
@@ -501,8 +437,22 @@ instance elimId :: Elim (W a) (W a) Unit where
 instance elimNotId :: Elim (W a) (W b) (W b) where
   elim _ _ = Proxy
 
-instance elimOr :: (Elim a b d, Elim a c e, ElimUnit (op d e) g) => Elim a (op b c) g where
+instance elimOp :: (Elim a b d, Elim a c e, ElimUnit (op d e) g) => Elim a (op b c) g where
   elim _ _ = Proxy
 
 testElim :: _
 testElim = elim (Proxy :: Proxy (W Char)) (Proxy :: Proxy (W Int || (W String || (W Boolean && W Char))))
+
+--------------------------------------------------------------------------------
+
+class ElimList a b c | a b -> c where
+  elimList :: Proxy a -> Proxy b -> Proxy c
+
+instance elimNil :: ElimList Nil a a where
+  elimList _ _ = Proxy
+
+instance elimCons :: (Elim a c c', ElimList b c' d) => ElimList (Cons a b) c d where
+  elimList _ _ = Proxy
+
+testElimList :: _
+testElimList = elimList (Proxy :: Proxy (W Char ::: W Boolean ::: W String ::: Nil)) (Proxy :: Proxy (W Int || (W String && (W Boolean && W Char))))
