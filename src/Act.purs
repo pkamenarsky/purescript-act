@@ -487,11 +487,11 @@ minsert = undefined
 mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> PMap { read :: perms | rest } k v -> Maybe v
 mlookup = undefined
 
-mlookup' :: forall k v perm otherPerms allPerms perms rest.
-     Append perm otherPerms allPerms
+mlookup' :: forall k v permKey otherPerms allPerms perms rest.
+     Append permKey otherPerms allPerms
   => ElimList allPerms perms Unit
-  => Key perm k
-  => perm
+  => Key permKey k
+  => permKey
   -> otherPerms
   -> PMap { read :: perms | rest } k v
   -> Maybe v
@@ -562,3 +562,5 @@ infixr 4 appendPerm as +++
 
 testAppendPerm :: _
 testAppendPerm = self 5 +++ (proxy :: Int -> Maybe (Char ::: Nil)) +++ (proxy :: Int -> Maybe (Char ::: Nil))
+
+--------------------------------------------------------------------------------
