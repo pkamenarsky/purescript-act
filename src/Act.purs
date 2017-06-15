@@ -359,7 +359,7 @@ instance pairableArray :: Pairable (Array a) where
 --------------------------------------------------------------------------------
 
 data UserG = UserG
-  { name :: Guarded (AdminP || UserP && AdminP) String
+  { name :: Guarded (AdminP' || UserP && AdminP') String
   }
 
 data Guarded perm a = Guarded a
@@ -370,7 +370,8 @@ data Permission read write create = Permission
   , create :: create
   }
 
-data AdminP
+data AdminP a = AdminP a
+type AdminP' = AdminP Unit
 data UserP
 data GuestP
 
@@ -432,6 +433,9 @@ class Elim a b c | a b -> c where
 instance elimId :: Elim (W a) (W a) Unit where
   elim _ _ = Proxy
 
+instance elimUnit0 :: Elim (W a) Unit Unit where
+  elim _ _ = Proxy
+
 instance elimNotId :: Elim (W a) (W b) (W b) where
   elim _ _ = Proxy
 
@@ -483,12 +487,39 @@ minsert = undefined
 mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> PMap { read :: perms | rest } k v -> Maybe v
 mlookup = undefined
 
+mlookup' :: forall k v perm otherPerms allPerms perms rest.
+     Append perm otherPerms allPerms
+  => ElimList allPerms perms Unit
+  => Key perm k
+  => perm
+  -> otherPerms
+  -> PMap { read :: perms | rest } k v
+  -> Maybe v
+mlookup' = undefined
+
 mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
 mmodify = undefined
 
+pmap :: PMap { read :: W (AdminP String) && W UserP } String Int
+pmap = undefined
+
+testMlookup :: _
+testMlookup = mlookup' (proxy :: W (AdminP String) ::: Nil) (proxy :: W UserP ::: Nil) pmap
+
 --------------------------------------------------------------------------------
 
-type Perm a = Maybe (Cons (W a) Nil)
+type Perm a = Maybe (W a ::: Nil)
+
+type Perm' st a = st -> Maybe (W a ::: Nil)
+
+class Key a b where
+  key :: a -> b
+
+instance keyAdminP :: Key (AdminP a) a where
+  key _ = undefined
+
+instance keySingletonList :: Key k a => Key (W k ::: Nil) a where
+  key _ = undefined
 
 data Self a
 
