@@ -457,7 +457,10 @@ testElimList = elimList (Proxy :: Proxy (W Char ::: W Boolean ::: W String ::: N
 
 --------------------------------------------------------------------------------
 
-pmodify :: forall perms permList a rest. (ElimList permList perms Unit) => { modify :: Proxy permList | rest } -> Lens' (Guarded perms a) a
+proxy :: forall a. a
+proxy = undefined
+
+pmodify :: forall perms permList a rest. (ElimList permList perms Unit) => { modify :: permList | rest } -> Lens' (Guarded perms a) a
 pmodify = undefined
 
 pread :: forall perms permList a rest. (ElimList permList perms Unit) => { read :: Proxy permList | rest } -> Guarded perms a -> a
@@ -467,7 +470,7 @@ pcreate :: forall perms permList a rest. (ElimList permList perms Unit) => { cre
 pcreate = undefined
 
 testPerm :: Lens' (Guarded (W String && W Int) Boolean) _
-testPerm = pmodify { modify: Proxy :: Proxy (W String ::: W Int ::: Nil) }
+testPerm = pmodify { modify: proxy :: W String ::: W Int ::: Nil }
 
 --------------------------------------------------------------------------------
 
@@ -477,15 +480,54 @@ data PMap perms k v
 minsert :: forall k v perms rest permList. (ElimList permList perms Unit) => Proxy permList -> k -> v -> PMap { insert :: perms | rest } k v -> Maybe (PMap { insert :: perms | rest } k v)
 minsert = undefined
 
-mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Proxy permList) -> k -> PMap { read :: perms | rest } k v -> Maybe v
+mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> PMap { read :: perms | rest } k v -> Maybe v
 mlookup = undefined
 
-mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Proxy permList) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
+mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
 mmodify = undefined
 
 --------------------------------------------------------------------------------
 
+type Perm a = Maybe (Cons (W a) Nil)
+
 data Self a
 
-self :: forall a. Ord a => a -> a -> Maybe (Proxy (W (Self a)))
-self = undefined
+self :: forall a. Ord a => a -> a -> Perm (Self a)
+self a a' | a == a'   = undefined -- Cons (Just proxy) undefined
+          | otherwise = undefined -- Cons Nothing undefined
+
+--------------------------------------------------------------------------------
+
+class Append a b c | a b -> c where
+  append :: Proxy a -> Proxy b -> Proxy c
+
+instance append0 :: Append a Nil a where
+  append _ _ = Proxy
+
+instance append1 :: Append Nil a a where
+  append _ _ = Proxy
+
+instance append3 :: Append b d e => Append (Cons a b) (Cons c d) (Cons a (Cons c e)) where
+  append _ _ = Proxy
+
+testAppend :: _
+testAppend = append (Proxy :: Proxy (Int ::: Char ::: Nil)) (Proxy :: Proxy (String ::: Boolean ::: Nil))
+
+--------------------------------------------------------------------------------
+
+class AppendPerm a b c | a b -> c where
+  appendPerm :: a -> b -> c
+
+instance appendPerm0 :: AppendPerm a Nil a where
+  appendPerm _ _ = undefined
+
+instance appendPerm1 :: AppendPerm Nil a a where
+  appendPerm _ _ = undefined
+
+instance appendPerm3 :: AppendPerm b d e => AppendPerm (x -> Maybe (Cons a b)) (x -> Maybe (Cons c d)) (x -> Maybe (Cons a (Cons c e))) where
+  appendPerm _ _ = undefined
+
+infixr 4 appendPerm as +++
+
+testAppendPerm :: _
+testAppendPerm = self 5 +++ (proxy :: Int -> Maybe (Char ::: Nil)) +++ (proxy :: Int -> Maybe (Char ::: Nil))
