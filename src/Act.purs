@@ -388,6 +388,9 @@ data Perm a = Perm a
 data Nil = Nil
 data Cons a b = Cons a b
 
+nil :: Nil
+nil = Nil
+
 infixr 4 type Cons as :::
 infixr 4 Cons as :::
 
@@ -559,6 +562,6 @@ user :: Int -> Maybe UserP
 user = undefined
 
 testList :: _
-testList = case withPerm 6 (admin "admin" ::: user ::: Nil) of
-  Just admin ::: Just user ::: _ -> mlookup admin (user ::: Nil) pmap
+testList = case withPerm 6 (admin "admin" ::: user ::: nil) of
+  Just admin ::: Just user ::: _ -> mlookup admin (user ::: nil) pmap
   otherwise -> Nothing
