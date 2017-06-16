@@ -482,10 +482,26 @@ testPerm = pmodify { modify: proxy :: Perm String ::: Perm Int ::: Nil }
 
 --------------------------------------------------------------------------------
 
+data UniqueKey k = UniqueKey k
+
+instance uniqueKey0 :: Key (UniqueKey k) k where
+  key (UniqueKey k) = k
+
+uniqueKey :: forall perms k v. k -> PMap perms k v -> Maybe (UniqueKey k)
+uniqueKey = undefined
+
+--------------------------------------------------------------------------------
+
 data PMap perms k v
 
--- returns Nothing if key already present
-minsert :: forall k v perms rest permList. (ElimList permList perms Unit) => Proxy permList -> k -> v -> PMap { insert :: perms | rest } k v -> Maybe (PMap { insert :: perms | rest } k v)
+minsert :: forall k v permKey otherPerms perms rest.
+     ElimList (permKey ::: otherPerms) perms Unit
+  => Key permKey k
+  => permKey
+  -> otherPerms
+  -> v
+  -> PMap { insert :: perms | rest } k v
+  -> PMap { insert :: perms | rest } k v
 minsert = undefined
 
 mlookup :: forall k v permKey otherPerms allPerms perms rest.
@@ -497,14 +513,26 @@ mlookup :: forall k v permKey otherPerms allPerms perms rest.
   -> Maybe v
 mlookup = undefined
 
-mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
+mmodify :: forall k v permKey otherPerms allPerms perms rest.
+     ElimList (permKey ::: otherPerms) perms Unit
+  => Key permKey k
+  => permKey
+  -> otherPerms
+  -> (Maybe v -> Maybe v)
+  -> PMap { modify :: perms | rest } k v
+  -> PMap { modify :: perms | rest } k v
 mmodify = undefined
 
-pmap :: PMap { read :: Perm (AdminP String) && Perm UserP } String Int
+pmap :: PMap { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey String) } String Int
 pmap = undefined
 
 testMlookup :: _
 testMlookup = mlookup (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
+
+testMinsert :: _
+testMinsert = case withPerm pmap (uniqueKey "0" ::: nil) of
+  Just key ::: _ -> minsert key nil 6 pmap
+  otherwise -> undefined
 
 --------------------------------------------------------------------------------
 
@@ -541,7 +569,7 @@ testAppend = append (Proxy :: Proxy (Int ::: Char ::: Nil)) (Proxy :: Proxy (Str
 
 --------------------------------------------------------------------------------
 
-class WithPerm st a b | a -> b where
+class WithPerm st a b | a -> b st where
   withPerm :: st -> a -> b
 
 instance withPerm0 :: WithPerm st Nil Nil where
@@ -551,7 +579,7 @@ instance withPerm1 :: WithPerm st b c => WithPerm st (Cons (st -> Maybe a) b) (C
   withPerm st (x ::: xs) = undefined -- Perm (x st) ::: withPerm st xs
 
 testWithPerm :: _
-testWithPerm = withPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
+testWithPerm = withPerm 6 (proxy :: (_ -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
 
 --------------------------------------------------------------------------------
 
