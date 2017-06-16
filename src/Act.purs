@@ -492,7 +492,18 @@ uniqueKey = undefined
 
 --------------------------------------------------------------------------------
 
-data PMap perms k v
+data PMap perms k v = PMap
+
+data UMap u = UMap u
+
+type SMap = (forall a. UMap a)
+
+type S = {
+  smap :: SMap
+}
+
+mod :: SMap -> SMap
+mod (UMap a) = UMap a
 
 minsert :: forall k v permKey otherPerms perms rest.
      ElimList (permKey ::: otherPerms) perms Unit
@@ -523,7 +534,7 @@ mmodify :: forall k v permKey otherPerms allPerms perms rest.
   -> PMap { modify :: perms | rest } k v
 mmodify = undefined
 
-pmap :: PMap { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey String) } String Int
+pmap :: PMap { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey String) || Perm GuestP } String Int
 pmap = undefined
 
 testMlookup :: _
