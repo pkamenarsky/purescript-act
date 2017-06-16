@@ -547,26 +547,21 @@ testAppend = append (Proxy :: Proxy (Int ::: Char ::: Nil)) (Proxy :: Proxy (Str
 
 --------------------------------------------------------------------------------
 
-class AppendPerm a b c | a b -> c where
-  appendPerm :: a -> b -> c
+class AppendPerm st a b | a -> b where
+  appendPerm :: st -> a -> b
 
-instance appendPerm0 :: AppendPerm a Nil a where
-  appendPerm _ _ = undefined
+instance appendPerm0 :: AppendPerm st Nil Nil where
+  appendPerm st Nil = Nil
 
-instance appendPerm1 :: AppendPerm Nil a a where
-  appendPerm _ _ = undefined
-
-instance appendPerm3 :: AppendPerm b d e => AppendPerm (x -> Maybe (Cons a b)) (x -> Maybe (Cons c d)) (x -> Maybe (Cons a (Cons c e))) where
-  appendPerm _ _ = undefined
-
-infixr 4 appendPerm as +++
+instance appendPerm1 :: AppendPerm st b c => AppendPerm st (Cons (st -> Maybe a) b) (Cons (Maybe a) c) where
+  appendPerm st (x ::: xs) = x st ::: appendPerm st xs
 
 testAppendPerm :: _
-testAppendPerm = self 5 +++ (proxy :: Int -> Maybe (Char ::: Nil)) +++ (proxy :: Int -> Maybe (Char ::: Nil))
+testAppendPerm = appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
 
 --------------------------------------------------------------------------------
 
 testList :: _
-testList = case (proxy :: W Char ::: W String ::: W Boolean ::: Nil) of
-  W char ::: W string ::: W boolean ::: _ -> boolean
-  otherwise -> true
+testList = case appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil) of
+  Just char ::: Just string ::: _ -> string
+  otherwise -> ""
