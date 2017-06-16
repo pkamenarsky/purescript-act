@@ -485,17 +485,14 @@ data PMap perms k v
 minsert :: forall k v perms rest permList. (ElimList permList perms Unit) => Proxy permList -> k -> v -> PMap { insert :: perms | rest } k v -> Maybe (PMap { insert :: perms | rest } k v)
 minsert = undefined
 
-mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> PMap { read :: perms | rest } k v -> Maybe v
-mlookup = undefined
-
-mlookup' :: forall k v permKey otherPerms allPerms perms rest.
+mlookup :: forall k v permKey otherPerms allPerms perms rest.
      ElimList (permKey ::: otherPerms) perms Unit
   => Key permKey k
   => permKey
   -> otherPerms
   -> PMap { read :: perms | rest } k v
   -> Maybe v
-mlookup' = undefined
+mlookup = undefined
 
 mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
 mmodify = undefined
@@ -504,7 +501,7 @@ pmap :: PMap { read :: Perm (AdminP String) && Perm UserP } String Int
 pmap = undefined
 
 testMlookup :: _
-testMlookup = mlookup' (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
+testMlookup = mlookup (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
 
 --------------------------------------------------------------------------------
 
@@ -541,21 +538,27 @@ testAppend = append (Proxy :: Proxy (Int ::: Char ::: Nil)) (Proxy :: Proxy (Str
 
 --------------------------------------------------------------------------------
 
-class AppendPerm st a b | a -> b where
-  appendPerm :: st -> a -> b
+class WithPerm st a b | a -> b where
+  withPerm :: st -> a -> b
 
-instance appendPerm0 :: AppendPerm st Nil Nil where
-  appendPerm st Nil = Nil
+instance withPerm0 :: WithPerm st Nil Nil where
+  withPerm st Nil = Nil
 
-instance appendPerm1 :: AppendPerm st b c => AppendPerm st (Cons (st -> Maybe a) b) (Cons (Maybe (Perm a)) c) where
-  appendPerm st (x ::: xs) = undefined -- Perm (x st) ::: appendPerm st xs
+instance withPerm1 :: WithPerm st b c => WithPerm st (Cons (st -> Maybe a) b) (Cons (Maybe (Perm a)) c) where
+  withPerm st (x ::: xs) = undefined -- Perm (x st) ::: withPerm st xs
 
-testAppendPerm :: _
-testAppendPerm = appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
+testWithPerm :: _
+testWithPerm = withPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
 
 --------------------------------------------------------------------------------
 
+admin :: forall a. a -> Int -> Maybe (AdminP a)
+admin = undefined
+
+user :: Int -> Maybe UserP
+user = undefined
+
 testList :: _
-testList = case appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil) of
-  Just (Perm char) ::: Just (Perm string) ::: _ -> string
-  otherwise -> ""
+testList = case withPerm 6 (admin "admin" ::: user ::: Nil) of
+  Just admin ::: Just user ::: _ -> mlookup admin (user ::: Nil) pmap
+  otherwise -> Nothing
