@@ -383,12 +383,13 @@ data And a b = And a b
 
 infixl 4 type And as &&
 
-data W a
+data W a = W a
 
-data Nil
+data Nil = Nil
 data Cons a b = Cons a b
 
 infixr 4 type Cons as :::
+infixr 4 Cons as :::
 
 class ElemOf a b where
   elemOf :: Proxy a -> Proxy b -> Unit
@@ -564,3 +565,8 @@ testAppendPerm :: _
 testAppendPerm = self 5 +++ (proxy :: Int -> Maybe (Char ::: Nil)) +++ (proxy :: Int -> Maybe (Char ::: Nil))
 
 --------------------------------------------------------------------------------
+
+testList :: _
+testList = case (proxy :: W Char ::: W String ::: W Boolean ::: Nil) of
+  W char ::: W string ::: W boolean ::: _ -> boolean
+  otherwise -> true
