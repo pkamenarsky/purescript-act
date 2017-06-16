@@ -383,7 +383,7 @@ data And a b = And a b
 
 infixl 4 type And as &&
 
-data W a = W a
+data Perm a = Perm a
 
 data Nil = Nil
 data Cons a b = Cons a b
@@ -408,7 +408,7 @@ class ElimUnit a b | a -> b where
 instance elimOp0 :: ElimUnit Unit Unit where
   elimUnit _ = Proxy
 
-instance elimOp1 :: ElimUnit (W a) (W a) where
+instance elimOp1 :: ElimUnit (Perm a) (Perm a) where
   elimUnit _ = Proxy
 
 instance elimOp2 :: ElimUnit b c => ElimUnit (Unit && b) c where
@@ -431,20 +431,20 @@ instance elimOp6 :: (ElimUnit b d, ElimUnit c e) => ElimUnit (op b c) (op d e) w
 class Elim a b c | a b -> c where
   elim :: Proxy a -> Proxy b -> Proxy c
 
-instance elimId :: Elim (W a) (W a) Unit where
+instance elimId :: Elim (Perm a) (Perm a) Unit where
   elim _ _ = Proxy
 
-instance elimUnit0 :: Elim (W a) Unit Unit where
+instance elimUnit0 :: Elim (Perm a) Unit Unit where
   elim _ _ = Proxy
 
-instance elimNotId :: Elim (W a) (W b) (W b) where
+instance elimNotId :: Elim (Perm a) (Perm b) (Perm b) where
   elim _ _ = Proxy
 
 instance elimOp :: (Elim a b d, Elim a c e, ElimUnit (op d e) g) => Elim a (op b c) g where
   elim _ _ = Proxy
 
 testElim :: _
-testElim = elim (Proxy :: Proxy (W Char)) (Proxy :: Proxy (W Int || (W String || (W Boolean && W Char))))
+testElim = elim (Proxy :: Proxy (Perm Char)) (Proxy :: Proxy (Perm Int || (Perm String || (Perm Boolean && Perm Char))))
 
 --------------------------------------------------------------------------------
 
@@ -458,7 +458,7 @@ instance elimCons :: (Elim a c c', ElimList b c' d) => ElimList (Cons a b) c d w
   elimList _ _ = Proxy
 
 testElimList :: _
-testElimList = elimList (Proxy :: Proxy (W Char ::: W Boolean ::: W String ::: Nil)) (Proxy :: Proxy (W Int || (W String && (W Boolean && W Char))))
+testElimList = elimList (Proxy :: Proxy (Perm Char ::: Perm Boolean ::: Perm String ::: Nil)) (Proxy :: Proxy (Perm Int || (Perm String && (Perm Boolean && Perm Char))))
 
 --------------------------------------------------------------------------------
 
@@ -474,8 +474,8 @@ pread = undefined
 pcreate :: forall perms permList a rest. (ElimList permList perms Unit) => { create :: Proxy permList | rest } -> a -> Guarded perms a
 pcreate = undefined
 
-testPerm :: Lens' (Guarded (W String && W Int) Boolean) _
-testPerm = pmodify { modify: proxy :: W String ::: W Int ::: Nil }
+testPerm :: Lens' (Guarded (Perm String && Perm Int) Boolean) _
+testPerm = pmodify { modify: proxy :: Perm String ::: Perm Int ::: Nil }
 
 --------------------------------------------------------------------------------
 
@@ -489,8 +489,7 @@ mlookup :: forall k v perms rest permList. (ElimList permList perms Unit) => (k 
 mlookup = undefined
 
 mlookup' :: forall k v permKey otherPerms allPerms perms rest.
-     Append permKey otherPerms allPerms
-  => ElimList allPerms perms Unit
+     ElimList (permKey ::: otherPerms) perms Unit
   => Key permKey k
   => permKey
   -> otherPerms
@@ -501,17 +500,13 @@ mlookup' = undefined
 mmodify :: forall k v perms rest permList. (ElimList permList perms Unit) => (k -> Maybe (Proxy permList)) -> k -> (Maybe v -> Maybe v) -> PMap { modify :: perms | rest } k v -> PMap { modify :: perms | rest } k v
 mmodify = undefined
 
-pmap :: PMap { read :: W (AdminP String) && W UserP } String Int
+pmap :: PMap { read :: Perm (AdminP String) && Perm UserP } String Int
 pmap = undefined
 
 testMlookup :: _
-testMlookup = mlookup' (proxy :: W (AdminP String) ::: Nil) (proxy :: W UserP ::: Nil) pmap
+testMlookup = mlookup' (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
 
 --------------------------------------------------------------------------------
-
-type Perm a = Maybe (W a ::: Nil)
-
-type Perm' st a = st -> Maybe (W a ::: Nil)
 
 class Key a b where
   key :: a -> b
@@ -519,14 +514,13 @@ class Key a b where
 instance keyAdminP :: Key (AdminP a) a where
   key _ = undefined
 
-instance keySingletonList :: Key k a => Key (W k ::: Nil) a where
+instance keyAdminPerm :: Key a b => Key (Perm a) b where
   key _ = undefined
 
 data Self a
 
-self :: forall a. Ord a => a -> a -> Perm (Self a)
-self a a' | a == a'   = undefined -- Cons (Just proxy) undefined
-          | otherwise = undefined -- Cons Nothing undefined
+self :: forall st a. st -> Maybe (Self a)
+self = undefined
 
 --------------------------------------------------------------------------------
 
@@ -553,8 +547,8 @@ class AppendPerm st a b | a -> b where
 instance appendPerm0 :: AppendPerm st Nil Nil where
   appendPerm st Nil = Nil
 
-instance appendPerm1 :: AppendPerm st b c => AppendPerm st (Cons (st -> Maybe a) b) (Cons (Maybe a) c) where
-  appendPerm st (x ::: xs) = x st ::: appendPerm st xs
+instance appendPerm1 :: AppendPerm st b c => AppendPerm st (Cons (st -> Maybe a) b) (Cons (Maybe (Perm a)) c) where
+  appendPerm st (x ::: xs) = undefined -- Perm (x st) ::: appendPerm st xs
 
 testAppendPerm :: _
 testAppendPerm = appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
@@ -563,5 +557,5 @@ testAppendPerm = appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe St
 
 testList :: _
 testList = case appendPerm 6 (proxy :: (Int -> Maybe Char) ::: (Int -> Maybe String) ::: Nil) of
-  Just char ::: Just string ::: _ -> string
+  Just (Perm char) ::: Just (Perm string) ::: _ -> string
   otherwise -> ""
