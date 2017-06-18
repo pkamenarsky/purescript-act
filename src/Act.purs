@@ -482,60 +482,52 @@ testPerm = pmodify { modify: proxy :: Perm String ::: Perm Int ::: Nil }
 
 --------------------------------------------------------------------------------
 
-data UniqueKey k = UniqueKey k
+data UniqueKey (storeId :: Symbol) k = UniqueKey k
 
-instance uniqueKey0 :: Key (UniqueKey k) k where
-  key (UniqueKey k) = k
+instance uniqueKey0 :: Key storeId (UniqueKey storeId k) k where
+  key _ (UniqueKey k) = k
 
-uniqueKey :: forall perms k v. k -> PMap perms k v -> Maybe (UniqueKey k)
+uniqueKey :: forall storeId perms k v. k -> PMap storeId perms k v -> Maybe (UniqueKey storeId k)
 uniqueKey = undefined
 
 --------------------------------------------------------------------------------
 
-data PMap perms k v = PMap
+data PMap (storeId :: Symbol) perms k v = PMap
 
-data UMap u = UMap u
-
-type SMap = (forall a. UMap a)
-
-type S = {
-  smap :: SMap
-}
-
-mod :: SMap -> SMap
-mod (UMap a) = UMap a
-
-minsert :: forall k v permKey otherPerms perms rest.
+minsert :: forall storeId k v permKey otherPerms perms rest.
      ElimList (permKey ::: otherPerms) perms Unit
-  => Key permKey k
+  => Key storeId permKey k
   => permKey
   -> otherPerms
   -> v
-  -> PMap { insert :: perms | rest } k v
-  -> PMap { insert :: perms | rest } k v
+  -> PMap storeId { insert :: perms | rest } k v
+  -> PMap storeId { insert :: perms | rest } k v
 minsert = undefined
 
-mlookup :: forall k v permKey otherPerms allPerms perms rest.
+mlookup :: forall storeId k v permKey otherPerms allPerms perms rest.
      ElimList (permKey ::: otherPerms) perms Unit
-  => Key permKey k
+  => Key storeId permKey k
   => permKey
   -> otherPerms
-  -> PMap { read :: perms | rest } k v
+  -> PMap storeId { read :: perms | rest } k v
   -> Maybe v
 mlookup = undefined
 
-mmodify :: forall k v permKey otherPerms allPerms perms rest.
+mmodify :: forall storeId k v permKey otherPerms allPerms perms rest.
      ElimList (permKey ::: otherPerms) perms Unit
-  => Key permKey k
+  => Key storeId permKey k
   => permKey
   -> otherPerms
   -> (Maybe v -> Maybe v)
-  -> PMap { modify :: perms | rest } k v
-  -> PMap { modify :: perms | rest } k v
+  -> PMap storeId { modify :: perms | rest } k v
+  -> PMap storeId { modify :: perms | rest } k v
 mmodify = undefined
 
-pmap :: PMap { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey String) || Perm GuestP } String Int
+pmap :: PMap "pmap" { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey "pmap" String) || Perm GuestP } String Int
 pmap = undefined
+
+pmap2 :: PMap "pmap2" { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey "pmap" String) || Perm GuestP } String Int
+pmap2 = undefined
 
 testMlookup :: _
 testMlookup = mlookup (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
@@ -547,14 +539,14 @@ testMinsert = case withPerm pmap (uniqueKey "0" ::: nil) of
 
 --------------------------------------------------------------------------------
 
-class Key a b where
-  key :: a -> b
+class Key (storeId :: Symbol) a b | a -> b where
+  key :: SProxy storeId -> a -> b
 
-instance keyAdminP :: Key (AdminP a) a where
-  key _ = undefined
+instance keyAdminP :: Key storeId (AdminP a) a where
+  key _ _ = undefined
 
-instance keyAdminPerm :: Key a b => Key (Perm a) b where
-  key _ = undefined
+instance keyAdminPerm :: Key storeId a b => Key storeId (Perm a) b where
+  key _ _ = undefined
 
 data Self a
 
