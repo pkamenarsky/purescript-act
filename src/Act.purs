@@ -596,3 +596,16 @@ testList :: _
 testList = case withPerm 6 (admin "admin" ::: user ::: nil) of
   Just admin ::: Just user ::: _ -> mlookup admin (user ::: nil) pmap
   otherwise -> Nothing
+
+-- Referential integrity -------------------------------------------------------
+
+newtype Key' k v = Key' k -- Constructor not exported, i.e. Key can be obtained only by insert or lookupKey
+
+key :: forall k v. Key' k v -> k
+key (Key' k) = k
+
+insertRI :: forall k v. k -> v -> Map k v -> Tuple (Map k v) (Key' k v)
+insertRI = undefined
+
+lookupKeyRI :: forall k v. k -> Map k v -> Maybe (Key' k v)
+lookupKeyRI = undefined
