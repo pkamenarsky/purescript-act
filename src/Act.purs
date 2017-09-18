@@ -9,6 +9,7 @@ import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
 import Data.Exists
+import Data.Int as I
 import Data.Generic.Rep
 import Data.Traversable
 import Data.Lens
@@ -73,7 +74,7 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 
 --------------------------------------------------------------------------------
 
-data MouseDragState = DragStart R.MouseEvent | DragMove R.Event | DragEnd R.Event
+data MouseDragState = DragStart R.MouseEvent | DragMove R.MouseEvent | DragEnd R.MouseEvent
 
 instance shoeMouseDragState :: Show MouseDragState where
   show (DragStart _) = "DragStart"
@@ -142,8 +143,8 @@ interpretEffect this m = runFreeM go m
       pure next
     go (OnDragStart f) = do
       _ <- dragStart \st e -> case st of
-        1 -> interpretEffect this $ f (DragMove e)
-        2 -> interpretEffect this $ f (DragEnd e)
+        1 -> interpretEffect this $ f (DragMove $ unsafeCoerce e)
+        2 -> interpretEffect this $ f (DragEnd $ unsafeCoerce e)
         _ -> undefined
       pure $ pure undefined
     go (Effect json eff next) = do
@@ -223,6 +224,9 @@ width v _ = P.width v
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
 
+d :: forall eff st. String -> Props eff st
+d v _ = P.unsafeMkProps "d" v
+
 x :: forall eff st. String -> Props eff st
 x v _ = P.unsafeMkProps "x" v
 
@@ -268,6 +272,9 @@ circle props children = { render: \effect st -> [ SVG.circle (map (\p -> p effec
 rect :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 rect props children = { render: \effect st -> [ SVG.rect (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
+path :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+path props children = { render: \effect st -> [ SVG.path (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
 text :: forall eff st. String -> Component eff st
 text str = { render: \_ _ -> [ R.text str ] }
 
@@ -293,7 +300,7 @@ mkSpec st cmp = R.spec st \this -> do
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple false (Tuple Nothing [])) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple (Tuple Nothing Nothing) (Tuple Nothing [])) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -326,14 +333,14 @@ counter =
     , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
     ]
 
-list :: forall eff. Component eff (Tuple Boolean (Tuple (Maybe String) (Array Int)))
+list :: forall eff. Component eff (Tuple (Tuple (Maybe RPosition) (Maybe RPosition)) (Tuple (Maybe String) (Array Int)))
 list =
   div
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
       [ zoom _1 $ rcomponent testRComponent
       ]
-    , state $ text <<< show
+    -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
     -- , div [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr)) ] [ text "+" ]
     -- , zoom _1 counter
@@ -349,12 +356,12 @@ list =
 
 testRComponent :: RComponent
 testRComponent =
-  { pos: { x: 100, y: 100 }
+  { pos: { x: 100.0, y: 100.0 }
   , label: "Add"
   , args: [ { name: "add", type: RForall "A" } ]
   }
 
-type RPosition = { x :: Int, y :: Int }
+type RPosition = { x :: Number, y :: Number }
 
 data RType = RForall String | RNamed String | RArray RType
 
@@ -366,22 +373,29 @@ type RComponent =
   , args  :: Array RArg
   }
 
-px :: Int -> String
+px :: Number -> String
 px x = show x <> "px"
 
-rcomponent :: forall eff. RComponent -> Component eff Boolean
-rcomponent rcmp = state \drag -> g [] $
+line :: forall eff st. RPosition -> RPosition -> Component eff st
+line start end = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show start.x <> " " <> show start.y <> " L" <> show end.x <> " " <> show end.y)] []
+
+rcomponent :: forall eff. RComponent -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
+rcomponent rcmp = state \st -> g [] $
   [ rect
-    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150), height (px 50), rx (px 5), ry (px 5), fill  "#d90e59" ]
+    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
     []
-  ] <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
+  ]
+  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
+  <> case st of
+       Tuple (Just start) (Just end)  -> [ line start end ]
+       _ -> []
   where
-    arg :: Tuple Int RArg -> Component eff Boolean
+    arg :: Tuple Int RArg -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
     arg (Tuple index rarg) = circle
       [ onMouseDrag drag
-      , cx (px $ rcmp.pos.x - 20), cy (px $ rcmp.pos.y - 0 + index * 15), r (px 7), fill "transparent", stroke "#d90e59", strokeWidth (px 3) ]
+      , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
       []
       where
-        drag (DragStart e) = modify $ const true
-        drag (DragMove e) = pure unit
-        drag (DragEnd e) = modify $ const false
+        drag (DragStart e) = modify $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
+        drag (DragMove e) = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+        drag (DragEnd e) = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
