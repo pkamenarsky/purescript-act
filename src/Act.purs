@@ -385,17 +385,17 @@ rcomponent rcmp = state \st -> g [] $
     [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
     []
   ]
-  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   <> case st of
        Tuple (Just start) (Just end)  -> [ line start end ]
        _ -> []
+  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   where
     arg :: Tuple Int RArg -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
     arg (Tuple index rarg) = circle
-      [ onMouseDrag drag
+      [ onMouseDrag \e -> drag e
       , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
       []
       where
         drag (DragStart e) = modify $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
-        drag (DragMove e) = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
-        drag (DragEnd e) = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+        drag (DragMove e)  = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+        drag (DragEnd e)   = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
