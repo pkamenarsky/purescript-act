@@ -129,7 +129,7 @@ interpretEffect this m = runFreeM go m
   where
     go (Modify f next) = do
       _ <- (unsafeCoerce R.transformState) this f
-      void $ traceAnyM $ static f
+      -- void $ traceAnyM $ static f
       pure next
     go (ModifyRemotely f a next) = undefined
     go (Log str next) = do
@@ -377,7 +377,7 @@ px :: Number -> String
 px x = show x <> "px"
 
 line :: forall eff st. RPosition -> RPosition -> Component eff st
-line start end = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show start.x <> " " <> show start.y <> " L" <> show end.x <> " " <> show end.y)] []
+line start end = path [ strokeWidth (px 3.0), stroke "#333333", d ("M" <> show start.x <> " " <> show start.y <> " L" <> show end.x <> " " <> show end.y)] []
 
 rcomponent :: forall eff. RComponent -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
 rcomponent rcmp = state \st -> g [] $
@@ -385,14 +385,14 @@ rcomponent rcmp = state \st -> g [] $
     [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
     []
   ]
+  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   <> case st of
        Tuple (Just start) (Just end)  -> [ line start end ]
        _ -> []
-  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   where
     arg :: Tuple Int RArg -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
     arg (Tuple index rarg) = circle
-      [ onMouseDrag \e -> drag e
+      [ onMouseDrag drag
       , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
       []
       where
