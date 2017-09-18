@@ -1,3 +1,4 @@
 .psc-package
 node_modules
 output
+static/dist
