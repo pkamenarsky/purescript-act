@@ -23,6 +23,7 @@ import DOM.Node.Types as D
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
+import React.DOM.SVG as SVG
 import ReactDOM as RD
 import DOM.HTML (window)
 import DOM.HTML.Types (htmlDocumentToDocument)
@@ -154,8 +155,56 @@ foreach_ lns f = { render }
 onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
 onClick f effect = P.onClick \e -> effect (f e)
 
+shapeRendering :: forall eff st. String -> Props eff st
+shapeRendering v _ = P.unsafeMkProps "shapeRendering" v
+
+width :: forall eff st. String -> Props eff st
+width v _ = P.width v
+
+height :: forall eff st. String -> Props eff st
+height v _ = P.height v
+
+x :: forall eff st. String -> Props eff st
+x v _ = P.unsafeMkProps "x" v
+
+y :: forall eff st. String -> Props eff st
+y v _ = P.unsafeMkProps "y" v
+
+cx :: forall eff st. String -> Props eff st
+cx v _ = P.unsafeMkProps "cx" v
+
+cy :: forall eff st. String -> Props eff st
+cy v _ = P.unsafeMkProps "cy" v
+
+r :: forall eff st. String -> Props eff st
+r v _ = P.unsafeMkProps "r" v
+
+rx :: forall eff st. String -> Props eff st
+rx v _ = P.unsafeMkProps "rx" v
+
+ry :: forall eff st. String -> Props eff st
+ry v _ = P.unsafeMkProps "ry" v
+
+stroke :: forall eff st. String -> Props eff st
+stroke v _ = P.unsafeMkProps "stroke" v
+
+strokeWidth :: forall eff st. String -> Props eff st
+strokeWidth v _ = P.unsafeMkProps "strokeWidth" v
+
+fill :: forall eff st. String -> Props eff st
+fill v _ = P.unsafeMkProps "fill" v
+
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+svg :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+svg props children = { render: \effect st -> [ SVG.svg (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+circle :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+circle props children = { render: \effect st -> [ SVG.circle (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+rect :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+rect props children = { render: \effect st -> [ SVG.rect (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 text :: forall eff st. String -> Component eff st
 text str = { render: \_ _ -> [ R.text str ] }
@@ -179,20 +228,14 @@ mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
-mkSpec' :: forall eff st. Local st -> Remote st -> Component' eff st -> R.ReactSpec Unit (Local st) _
-mkSpec' lst rst cmp = R.spec lst \this -> do
-  st' <- R.readState this
-  pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st' rst)
-
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-  where ui = R.createFactory (R.createClass (mkSpec' localUsers remoteUsers userComponent')) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
           -- void $ traceAnyM $ show $ from (undefined :: A)
-          mkPairs a a
           win <- window
           doc <- document win
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
@@ -225,8 +268,15 @@ list :: forall eff. Component eff (Tuple (Maybe String) (Array Int))
 list =
   div
     [ ]
-    [ state $ text <<< show
-    , div [ onClick $ const ajax ] [ text "+" ]
+    [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
+      [ rect
+        [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr))
+        , x "30px", y "30px", width "150px", height "50px", rx "5px", ry "5px", strokeWidth "0px", fill "#d90e59", stroke "#333333"
+        ] [ ]
+      ]
+    , state $ text <<< show
+    -- , div [ onClick $ const ajax ] [ text "+" ]
+    , div [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr)) ] [ text "+" ]
     -- , zoom _1 counter
     , foreach _2 counter
     , foreach_ _2 \_ d l -> counter_ d l
@@ -238,374 +288,25 @@ list =
 
 --------------------------------------------------------------------------------
 
-type User = { name :: String, age :: Int }
-type Session = { session :: String }
+type RPosition = { x :: Int, y :: Int }
 
-data Masked a = Masked
-newtype Identity a = Identity a
+data RType = RForall String | RNamed String | RArray RType
 
-unwrap :: forall a. Identity a -> a
-unwrap = undefined
+type RArg = { name :: String, type :: RType }
 
-type Remote st = st Masked Identity
-type Local st = st Identity Masked
-
-data CurrentSession (local :: Type -> Type) (remote :: Type -> Type) = CurrentSession { currentSession :: remote String }
-
-data Users local remote = Users
-  { users          :: local  (Array User)
-
-  , sessions       :: remote (Array Session)
-  , currentSession :: CurrentSession local remote
+type RComponent =
+  { pos   :: RPosition
+  , label :: String
+  , args  :: Array RArg
   }
 
-_currentSession :: forall local remote. Lens' (Users local remote) (CurrentSession local remote)
-_currentSession = undefined
-
-localUsers :: Local Users
-localUsers = Users { users: Identity [], sessions: Masked, currentSession: CurrentSession { currentSession: Masked } }
-
-remoteUsers :: Remote Users
-remoteUsers = Users { users: Masked, sessions: Identity [], currentSession: CurrentSession { currentSession: Identity "" } }
-
-data A = A
-  { b :: Array String
-  , c :: Array { d :: String }
-  }
-
-a :: A
-a = A { b: [], c: [] }
-
-derive instance genericUsers :: Generic (Users Masked Identity) _
-
-derive instance genericA :: Generic A _
-
-data Effect' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) a
-
-data Handler' (st :: (Type -> Type) -> (Type -> Type) -> Type)
-
-type Component' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) =
-  { render :: (Effect' eff st Unit -> Handler' st) -> Local st -> Remote st -> Array R.ReactElement
-  }
-
-type Props' eff (st :: (Type -> Type) -> (Type -> Type) -> Type) = (Effect' eff st Unit -> Handler' st) -> P.Props
-
-zoom' :: forall eff local remote st stt. Lens' (st local remote) (stt local remote) -> Component' eff stt -> Component' eff st
-zoom' lns cmp = undefined
-
-div' :: forall eff remotes st. Array (Props' eff st) -> Array (Component' eff st) -> Component' eff st
-div' props children = { render: \effect lst rst -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect lst rst) children) ] }
-
-text' :: forall eff st. String -> Component' eff st
-text' str = { render: \_ _ _ -> [ R.text str ] }
-
-getUser :: StaticPtr (String -> Remote CurrentSession -> Maybe String)
-getUser = static \a (CurrentSession st) -> Just (unwrap st.currentSession <> a)
-
-remoteState :: forall eff st a b. (StaticPtr (a -> Remote st -> b)) -> a -> (b -> Component' eff st) -> Component' eff st
-remoteState ptr a f = { render: \effect lst rst -> (f $ derefStatic ptr a rst).render effect lst rst }
-
-userComponent' :: forall eff. Component' eff Users
-userComponent' = div' [] [ zoom' _currentSession $ remoteState getUser "(y)" (text' <<< fromMaybe "") ]
-
---------------------------------------------------------------------------------
-
-class Pairable a where
-  pair :: forall eff. a -> a -> Eff eff Unit
-
-class GenericPair a where
-  gPair :: forall eff. a -> a -> Eff eff Unit
-
-instance genericPairNoConstructors :: GenericPair NoConstructors where
-  gPair _ _ = pure unit
-
-instance genericPairNoArguments :: GenericPair NoArguments where
-  gPair _ _ = pure unit
-
-instance genericPairSum :: (GenericPair a, GenericPair b) => GenericPair (Sum a b) where
-  gPair (Inl a1) (Inl a2) = gPair a1 a2
-  gPair (Inr b1) (Inr b2) = gPair b1 b2
-  gPair _ _ = pure unit
-
-instance genericPairProduct :: (GenericPair a, GenericPair b) => GenericPair (Product a b) where
-  gPair (Product a1 b1) (Product a2 b2) = do
-    gPair a1 a2
-    gPair b1 b2
-
-instance genericPairConstructor :: GenericPair a => GenericPair (Constructor name a) where
-  gPair (Constructor a1) (Constructor a2) = gPair a1 a2
-
-instance genericPairArgument :: Pairable a => GenericPair (Argument a) where
-  gPair (Argument a1) (Argument a2) = pair a1 a2
-
-instance genericPairRec :: GenericPair a => GenericPair (Rec a) where
-  gPair (Rec a1) (Rec a2) = gPair a1 a2
-
-instance genericPairFieldArray :: (Pairable a, IsSymbol name) => GenericPair (Field name a) where
-  gPair (Field a1) (Field a2) = do
-    void $ traceAnyM $ "Field: " <> reflectSymbol (SProxy :: SProxy name)
-    pair a1 a2
-
-mkPairs :: forall eff st rep. Generic st rep => GenericPair rep => st -> st -> Eff eff Unit
-mkPairs x y = gPair (from x) (from y)
-
---------------------------------------------------------------------------------
-
-instance pairableArray :: Pairable (Array a) where
-  pair a b = do
-    void $ traceAnyM "Array trace"
-    pure unit
-
---------------------------------------------------------------------------------
-
-data UserG = UserG
-  { name :: Guarded (AdminP' || UserP && AdminP') String
-  }
-
-data Guarded perm a = Guarded a
-
-data Permission read write create = Permission
-  { read :: read
-  , write :: write
-  , create :: create
-  }
-
-data AdminP a = AdminP a
-type AdminP' = AdminP Unit
-data UserP
-data GuestP
-
-data Or a b
-
-infixl 4 type Or as ||
-
-data And a b = And a b
-
-infixl 4 type And as &&
-
-data Perm a = Perm a
-
-data Nil = Nil
-data Cons a b = Cons a b
-
-nil :: Nil
-nil = Nil
-
-infixr 4 type Cons as :::
-infixr 4 Cons as :::
-
-class ElemOf a b where
-  elemOf :: Proxy a -> Proxy b -> Unit
-
-instance elemOfA :: ElemOf a (Cons a b) where
-  elemOf _ _ = unit
-
-instance elemOfB :: ElemOf a c => ElemOf a (Cons b c) where
-  elemOf _ _ = unit
-
---------------------------------------------------------------------------------
-
-class ElimUnit a b | a -> b where
-  elimUnit :: Proxy a -> Proxy b
-
-instance elimOp0 :: ElimUnit Unit Unit where
-  elimUnit _ = Proxy
-
-instance elimOp1 :: ElimUnit (Perm a) (Perm a) where
-  elimUnit _ = Proxy
-
-instance elimOp2 :: ElimUnit b c => ElimUnit (Unit && b) c where
-  elimUnit _ = Proxy
-
-instance elimOp3 :: ElimUnit b c => ElimUnit (b && Unit) c where
-  elimUnit _ = Proxy
-
-instance elimOp4 :: ElimUnit b c => ElimUnit (Unit || b) Unit where
-  elimUnit _ = Proxy
-
-instance elimOp5 :: ElimUnit b c => ElimUnit (b || Unit) Unit where
-  elimUnit _ = Proxy
-
-instance elimOp6 :: (ElimUnit b d, ElimUnit c e) => ElimUnit (op b c) (op d e) where
-  elimUnit _ = Proxy
-
---------------------------------------------------------------------------------
-
-class Elim a b c | a b -> c where
-  elim :: Proxy a -> Proxy b -> Proxy c
-
-instance elimId :: Elim (Perm a) (Perm a) Unit where
-  elim _ _ = Proxy
-
-instance elimUnit0 :: Elim (Perm a) Unit Unit where
-  elim _ _ = Proxy
-
-instance elimNotId :: Elim (Perm a) (Perm b) (Perm b) where
-  elim _ _ = Proxy
-
-instance elimOp :: (Elim a b d, Elim a c e, ElimUnit (op d e) g) => Elim a (op b c) g where
-  elim _ _ = Proxy
-
-testElim :: _
-testElim = elim (Proxy :: Proxy (Perm Char)) (Proxy :: Proxy (Perm Int || (Perm String || (Perm Boolean && Perm Char))))
-
---------------------------------------------------------------------------------
-
-class ElimList a b c | a b -> c where
-  elimList :: Proxy a -> Proxy b -> Proxy c
-
-instance elimNil :: ElimList Nil a a where
-  elimList _ _ = Proxy
-
-instance elimCons :: (Elim a c c', ElimList b c' d) => ElimList (Cons a b) c d where
-  elimList _ _ = Proxy
-
-testElimList :: _
-testElimList = elimList (Proxy :: Proxy (Perm Char ::: Perm Boolean ::: Perm String ::: Nil)) (Proxy :: Proxy (Perm Int || (Perm String && (Perm Boolean && Perm Char))))
-
---------------------------------------------------------------------------------
-
-proxy :: forall a. a
-proxy = undefined
-
-pmodify :: forall perms permList a rest. (ElimList permList perms Unit) => { modify :: permList | rest } -> Lens' (Guarded perms a) a
-pmodify = undefined
-
-pread :: forall perms permList a rest. (ElimList permList perms Unit) => { read :: Proxy permList | rest } -> Guarded perms a -> a
-pread = undefined
-
-pcreate :: forall perms permList a rest. (ElimList permList perms Unit) => { create :: Proxy permList | rest } -> a -> Guarded perms a
-pcreate = undefined
-
-testPerm :: Lens' (Guarded (Perm String && Perm Int) Boolean) _
-testPerm = pmodify { modify: proxy :: Perm String ::: Perm Int ::: Nil }
-
---------------------------------------------------------------------------------
-
-data UniqueKey (storeId :: Symbol) k = UniqueKey k
-
-instance uniqueKey0 :: Key storeId (UniqueKey storeId k) k where
-  key _ (UniqueKey k) = k
-
-uniqueKey :: forall storeId perms k v. k -> PMap storeId perms k v -> Maybe (UniqueKey storeId k)
-uniqueKey = undefined
-
---------------------------------------------------------------------------------
-
-data PMap (storeId :: Symbol) perms k v = PMap
-
-minsert :: forall storeId k v permKey otherPerms perms rest.
-     ElimList (permKey ::: otherPerms) perms Unit
-  => Key storeId permKey k
-  => permKey
-  -> otherPerms
-  -> v
-  -> PMap storeId { insert :: perms | rest } k v
-  -> PMap storeId { insert :: perms | rest } k v
-minsert = undefined
-
-mlookup :: forall storeId k v permKey otherPerms allPerms perms rest.
-     ElimList (permKey ::: otherPerms) perms Unit
-  => Key storeId permKey k
-  => permKey
-  -> otherPerms
-  -> PMap storeId { read :: perms | rest } k v
-  -> Maybe v
-mlookup = undefined
-
-mmodify :: forall storeId k v permKey otherPerms allPerms perms rest.
-     ElimList (permKey ::: otherPerms) perms Unit
-  => Key storeId permKey k
-  => permKey
-  -> otherPerms
-  -> (Maybe v -> Maybe v)
-  -> PMap storeId { modify :: perms | rest } k v
-  -> PMap storeId { modify :: perms | rest } k v
-mmodify = undefined
-
-pmap :: PMap "pmap" { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey "pmap" String) || Perm GuestP } String Int
-pmap = undefined
-
-pmap2 :: PMap "pmap2" { read :: Perm (AdminP String) && Perm UserP, insert :: Perm (UniqueKey "pmap" String) || Perm GuestP } String Int
-pmap2 = undefined
-
-testMlookup :: _
-testMlookup = mlookup (proxy :: Perm (AdminP String)) (proxy :: Perm UserP ::: Nil) pmap
-
-testMinsert :: _
-testMinsert = case withPerm pmap (uniqueKey "0" ::: nil) of
-  Just key ::: _ -> minsert key nil 6 pmap
-  otherwise -> undefined
-
---------------------------------------------------------------------------------
-
-class Key (storeId :: Symbol) a b | a -> b where
-  key :: SProxy storeId -> a -> b
-
-instance keyAdminP :: Key storeId (AdminP a) a where
-  key _ _ = undefined
-
-instance keyAdminPerm :: Key storeId a b => Key storeId (Perm a) b where
-  key _ _ = undefined
-
-data Self a
-
-self :: forall st a. st -> Maybe (Self a)
-self = undefined
-
---------------------------------------------------------------------------------
-
-class Append a b c | a b -> c where
-  append :: Proxy a -> Proxy b -> Proxy c
-
-instance append0 :: Append a Nil a where
-  append _ _ = Proxy
-
-instance append1 :: Append Nil a a where
-  append _ _ = Proxy
-
-instance append3 :: Append b d e => Append (Cons a b) (Cons c d) (Cons a (Cons c e)) where
-  append _ _ = Proxy
-
-testAppend :: _
-testAppend = append (Proxy :: Proxy (Int ::: Char ::: Nil)) (Proxy :: Proxy (String ::: Boolean ::: Nil))
-
---------------------------------------------------------------------------------
-
-class WithPerm st a b | a -> b st where
-  withPerm :: st -> a -> b
-
-instance withPerm0 :: WithPerm st Nil Nil where
-  withPerm st Nil = Nil
-
-instance withPerm1 :: WithPerm st b c => WithPerm st (Cons (st -> Maybe a) b) (Cons (Maybe (Perm a)) c) where
-  withPerm st (x ::: xs) = undefined -- Perm (x st) ::: withPerm st xs
-
-testWithPerm :: _
-testWithPerm = withPerm 6 (proxy :: (_ -> Maybe Char) ::: (Int -> Maybe String) ::: Nil)
-
---------------------------------------------------------------------------------
-
-admin :: forall a. a -> Int -> Maybe (AdminP a)
-admin = undefined
-
-user :: Int -> Maybe UserP
-user = undefined
-
-testList :: _
-testList = case withPerm 6 (admin "admin" ::: user ::: nil) of
-  Just admin ::: Just user ::: _ -> mlookup admin (user ::: nil) pmap
-  otherwise -> Nothing
-
--- Referential integrity -------------------------------------------------------
-
-newtype Key' k v = Key' k -- Constructor not exported, i.e. Key can be obtained only by insert or lookupKey
-
-key :: forall k v. Key' k v -> k
-key (Key' k) = k
-
-insertRI :: forall k v. k -> v -> Map k v -> Tuple (Map k v) (Key' k v)
-insertRI = undefined
-
-lookupKeyRI :: forall k v. k -> Map k v -> Maybe (Key' k v)
-lookupKeyRI = undefined
+px :: Int -> String
+px x = show x <> "px"
+
+rcomponent :: forall eff. RComponent -> Component eff Unit
+rcomponent rcmp = rect
+  [ rx (px rcmp.pos.x), ry (px rcmp.pos.y) ]
+  (map arg (zip (range 0 (length rcmp.args)) (rcmp.args)))
+  where
+    arg :: Tuple Int RArg -> Component eff Unit
+    arg (Tuple index rarg) = circle [ cx (px $ rcmp.pos.x - 20), cy (px $ rcmp.pos.y - 10 + index * 15), r (px 10), stroke "#d90e59", strokeWidth (px 3) ] []
