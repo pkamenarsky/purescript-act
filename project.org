@@ -1,0 +1,6 @@
+* type-directed search
+** every component is a pure function a -> b -> (c -> d) -> ... -> Component st
+** builder infers from type signature which components fit
+** click on "placeholder" (i.e. a (a -> ... -> Component st) argument), show which components fit
+** when connecting components, only show fitting data sources in side bar
+** when dragging component from side bar, only show fitting placeholders in UI
