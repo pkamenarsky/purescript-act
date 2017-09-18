@@ -3,6 +3,7 @@ module Act where
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Eff
+import Control.Monad.Eff.Console
 import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
@@ -37,6 +38,8 @@ import React (transformState)
 
 foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
 
+foreign import dragStart :: forall eff a. (Int -> R.Event -> Eff eff a) -> Eff eff Unit
+
 traceAnyM :: forall m a. Monad m => a -> m a
 traceAnyM s = traceAny s \_ -> pure s
 
@@ -70,10 +73,21 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 
 --------------------------------------------------------------------------------
 
+data MouseDragState = DragStart R.MouseEvent | DragMove R.Event | DragEnd R.Event
+
+instance shoeMouseDragState :: Show MouseDragState where
+  show (DragStart _) = "DragStart"
+  show (DragMove _) = "DragMove"
+  show (DragEnd _) = "DragEnd"
+
 data EffectF eff st next =
     Modify (st -> st) next
   | ModifyRemotely (StaticPtr (Json -> st -> (Tuple st Json))) Json (Json -> next)
   | Effect Json (Json -> Eff eff Json) (Json -> next)
+  | Log String next
+  | PreventDefault R.Event next
+  | StopPropagation R.Event next
+  | OnDragStart (MouseDragState -> Effect eff st next)
 
 derive instance functorEffectF :: Functor (EffectF eff st)
 
@@ -82,6 +96,10 @@ type Effect eff st = Free (EffectF eff st)
 mapEffectF :: forall eff st stt next. Lens' st stt -> EffectF eff stt next -> EffectF eff st next
 mapEffectF lns (ModifyRemotely a f next) = undefined
 mapEffectF lns (Modify f next) = Modify (over lns f) next
+mapEffectF lns (Log str next) = Log str next
+mapEffectF lns (PreventDefault e next) = PreventDefault e next
+mapEffectF lns (StopPropagation e next) = StopPropagation e next
+mapEffectF lns (OnDragStart next) = OnDragStart (map (mapEffect lns) next)
 mapEffectF lns (Effect json eff next) = Effect json eff next
 
 mapEffect :: forall eff st stt a. Lens' st stt -> Effect eff stt a -> Effect eff st a
@@ -93,7 +111,19 @@ modify f = liftF $ Modify f unit
 getHTTP :: forall eff st. String -> Effect eff st (Maybe String)
 getHTTP url = liftF (Effect (fromString url) (\_ -> pure $ fromString "Result'") toString)
 
-interpretEffect :: forall eff st a. R.ReactThis Unit st -> Effect eff st a -> Eff (state :: R.ReactState R.ReadWrite | eff) a
+log :: forall eff st. String -> Effect eff st Unit
+log str = liftF $ Log str unit
+
+preventDefault :: forall eff st. R.Event -> Effect eff st Unit
+preventDefault e = liftF $ PreventDefault e unit
+
+stopPropagation :: forall eff st. R.Event -> Effect eff st Unit
+stopPropagation e = liftF $ StopPropagation e unit
+
+onDragStart :: forall eff st. (MouseDragState -> Effect eff st Unit) -> Effect eff st Unit
+onDragStart f = liftF $ OnDragStart f
+
+interpretEffect :: forall eff st a. R.ReactThis Unit st -> Effect eff st a -> Eff (state :: R.ReactState R.ReadWrite, console :: CONSOLE | eff) a
 interpretEffect this m = runFreeM go m
   where
     go (Modify f next) = do
@@ -101,6 +131,21 @@ interpretEffect this m = runFreeM go m
       void $ traceAnyM $ static f
       pure next
     go (ModifyRemotely f a next) = undefined
+    go (Log str next) = do
+      logShow str
+      pure next
+    go (PreventDefault e next) = do
+      _ <- R.preventDefault e
+      pure next
+    go (StopPropagation e next) = do
+      _ <- R.stopPropagation e
+      pure next
+    go (OnDragStart f) = do
+      _ <- dragStart \st e -> case st of
+        1 -> interpretEffect this $ f (DragMove e)
+        2 -> interpretEffect this $ f (DragEnd e)
+        _ -> undefined
+      pure $ pure undefined
     go (Effect json eff next) = do
       -- dump json here
       res <- unsafeCoerce $ eff json
@@ -155,6 +200,20 @@ foreach_ lns f = { render }
 onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
 onClick f effect = P.onClick \e -> effect (f e)
 
+onMouseDown :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
+onMouseDown f effect = P.onMouseDown \e -> effect (f e)
+
+onMouseUp :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
+onMouseUp f effect = P.onMouseUp \e -> effect (f e)
+
+onMouseMove :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
+onMouseMove f effect = P.onMouseMove \e -> effect (f e)
+
+onMouseDrag :: forall eff st. (MouseDragState -> Effect eff st Unit) -> Props eff st
+onMouseDrag f = onMouseDown \e -> do
+  f (DragStart e)
+  onDragStart f
+
 shapeRendering :: forall eff st. String -> Props eff st
 shapeRendering v _ = P.unsafeMkProps "shapeRendering" v
 
@@ -200,6 +259,9 @@ div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props
 svg :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 svg props children = { render: \effect st -> [ SVG.svg (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
+g :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+g props children = { render: \effect st -> [ SVG.g (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
 circle :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 circle props children = { render: \effect st -> [ SVG.circle (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
@@ -231,7 +293,7 @@ mkSpec st cmp = R.spec st \this -> do
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec (Tuple false (Tuple Nothing [])) list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -264,22 +326,19 @@ counter =
     , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
     ]
 
-list :: forall eff. Component eff (Tuple (Maybe String) (Array Int))
+list :: forall eff. Component eff (Tuple Boolean (Tuple (Maybe String) (Array Int)))
 list =
   div
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
-      [ rect
-        [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr))
-        , x "30px", y "30px", width "150px", height "50px", rx "5px", ry "5px", strokeWidth "0px", fill "#d90e59", stroke "#333333"
-        ] [ ]
+      [ zoom _1 $ rcomponent testRComponent
       ]
     , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
-    , div [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr)) ] [ text "+" ]
+    -- , div [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr)) ] [ text "+" ]
     -- , zoom _1 counter
-    , foreach _2 counter
-    , foreach_ _2 \_ d l -> counter_ d l
+    -- , foreach (_2 >>> _2) counter
+    -- , foreach_ (_2 >>> _2) \_ d l -> counter_ d l
     ]
   where
     ajax = do
@@ -287,6 +346,13 @@ list =
       modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
 
 --------------------------------------------------------------------------------
+
+testRComponent :: RComponent
+testRComponent =
+  { pos: { x: 100, y: 100 }
+  , label: "Add"
+  , args: [ { name: "add", type: RForall "A" } ]
+  }
 
 type RPosition = { x :: Int, y :: Int }
 
@@ -303,10 +369,19 @@ type RComponent =
 px :: Int -> String
 px x = show x <> "px"
 
-rcomponent :: forall eff. RComponent -> Component eff Unit
-rcomponent rcmp = rect
-  [ rx (px rcmp.pos.x), ry (px rcmp.pos.y) ]
-  (map arg (zip (range 0 (length rcmp.args)) (rcmp.args)))
+rcomponent :: forall eff. RComponent -> Component eff Boolean
+rcomponent rcmp = state \drag -> g [] $
+  [ rect
+    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150), height (px 50), rx (px 5), ry (px 5), fill  "#d90e59" ]
+    []
+  ] <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   where
-    arg :: Tuple Int RArg -> Component eff Unit
-    arg (Tuple index rarg) = circle [ cx (px $ rcmp.pos.x - 20), cy (px $ rcmp.pos.y - 10 + index * 15), r (px 10), stroke "#d90e59", strokeWidth (px 3) ] []
+    arg :: Tuple Int RArg -> Component eff Boolean
+    arg (Tuple index rarg) = circle
+      [ onMouseDrag drag
+      , cx (px $ rcmp.pos.x - 20), cy (px $ rcmp.pos.y - 0 + index * 15), r (px 7), fill "transparent", stroke "#d90e59", strokeWidth (px 3) ]
+      []
+      where
+        drag (DragStart e) = modify $ const true
+        drag (DragMove e) = pure unit
+        drag (DragEnd e) = modify $ const false

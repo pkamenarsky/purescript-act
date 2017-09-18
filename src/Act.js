@@ -30,3 +30,22 @@ exports.static_ = function(a) {
 exports.derefStatic_ = function(ptr) {
   return static_ptr_table[ptr];
 }
+
+exports.dragStart = function(f) {
+  var mousemoveListener = function(e) {
+    e.preventDefault ();
+    f(1)(e)();
+  }
+
+  var mouseupListener = function(e) {
+    document.removeEventListener ('mouseup', mouseupListener, true);
+    document.removeEventListener ('mousemove', mousemoveListener, true);
+    e.preventDefault ();
+    f(2)(e)();
+  }
+
+  return function() {
+    document.addEventListener ('mouseup', mouseupListener, true);
+    document.addEventListener ('mousemove', mousemoveListener, true);
+  }
+}
