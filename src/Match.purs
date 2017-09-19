@@ -20,6 +20,9 @@ derive instance genericRType :: Generic RType
 instance showRType :: Show RType
   where show = gShow
 
+instance showREq :: Eq RType
+  where eq = gEq
+
 type RArg = { name :: String, type :: RType }
 
 matchArgs :: RType -> Array RType -> Array (Tuple RType (Array RType))
@@ -34,16 +37,16 @@ matchArgs t args = catMaybes $ do
     replaceArg a b (RVar a')
       | a == a'   = RConst b
       | otherwise = RVar a'
-    -- replaceArg a b (RArray a') = RArray $ replaceArg a b a'
-    replaceArg _ _ b = b
+    replaceArg a b (RApp t u) = RApp (replaceArg a b t) (replaceArg a b u)
+    replaceArg a b (RFun f x) = undefined
 
     matchArg :: RType -> RType -> Array RType -> Maybe (Array RType)
     matchArg (RConst a) (RConst b) args
       | a == b    = Just args
       | otherwise = Nothing
     matchArg (RConst a) (RVar b) args = Just $ map (replaceArg b a) args
-    matchArg _ _ _ = Nothing
-    -- matchArg (RArray a) (RArray b) args = matchArg a b args
+    matchArg (RApp a (RConst b)) (RApp a' (RVar b')) args
+      | a == a' = Just $ map (replaceArg b' b) args
     matchArg _ _ _ = Nothing
 
 testArgs :: Array RType
