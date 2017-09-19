@@ -1,5 +1,7 @@
 module Match where
 
+import Control.Apply
+
 import Prelude
 import Data.Array
 import Data.List
@@ -7,6 +9,7 @@ import Data.List as L
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
+import Data.Traversable
 import Unsafe.Coerce
 import Data.Generic
 import Data.Map as M
@@ -62,7 +65,7 @@ derive instance genericRTransform :: Generic RTransform
 instance showRTransform :: Show RTransform
   where show = gShow
 
-type RCost = Number
+type RCost = Int
 
 -- generalization: i.e. Person -> a
 generalizeType :: RType -> RType -> RTransform
@@ -104,6 +107,14 @@ type ArgList = Array RType
 specifyFun :: RType -> ArgList -> Array RType -> Array (RTransform /\ ArgList)
 specifyFun = undefined
 
+cost :: RTransform -> Maybe RCost
+cost REqual = Just 0
+cost (RSpecify _ _) = Just 0
+cost (RMap _ _) = Just 1
+cost (RCoerce _) = Just 1
+cost RNoMatch = Nothing
+cost (RTFun args result) = lift2 (+) (map (foldr (+) 0) (sequence (map cost args))) (cost result)
+
 --------------------------------------------------------------------------------
 
 testSpecify :: RTransform
@@ -129,4 +140,4 @@ fun args t = RFun (L.fromFoldable args) t
 testSpecifyFun :: RTransform
 testSpecifyFun = specifyType
   (fun [a, array a] component)
-  (fun [component, array person] component)
+  (fun [person, array person] component)
