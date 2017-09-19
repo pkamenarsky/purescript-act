@@ -67,6 +67,8 @@ instance showRTransform :: Show RTransform
 
 type RCost = Int
 
+type Ctx = M.Map Var Const
+
 -- generalization: i.e. Person -> a
 generalizeType :: RType -> RType -> RTransform
 generalizeType = undefined
@@ -83,7 +85,7 @@ specifyType (RApp t x) (RApp u y)
 -- TODO: apply context to result type
 specifyType (RFun args x) (RFun args' x') = RTFun (match M.empty args args' Nil) (specifyType x x')
   where
-    match :: M.Map Var Const -> List RType -> List RType -> List RTransform -> List RTransform
+    match :: Ctx -> List RType -> List RType -> List RTransform -> List RTransform
     match ctx (Cons a as) b'@(Cons b bs) tr
       | Just (v /\ c) <- matchVar a b
         = case M.lookup v ctx of
@@ -101,6 +103,28 @@ matchVar (RApp a b) (RApp a' b')
                      | a == a'   = matchVar b b'
                      | otherwise = Nothing
 matchVar _ _                     = Nothing
+
+realizeType :: Ctx -> RType -> RType
+realizeType ctx (RVar a)
+  | Just t <- M.lookup a ctx = RConst t
+  | otherwise = RVar a
+realizeType ctx (RConst a)  = RConst a
+realizeType ctx (RApp a b)  = RApp a (realizeType ctx b)
+realizeType ctx (RFun as r) = RFun (map (realizeType ctx) as) (realizeType ctx r)
+
+realizeType' :: RTransform -> RType -> RType
+realizeType' tr a = realizeType (ctxFromTransform tr M.empty) a
+
+ctxFromTransform :: RTransform -> Ctx -> Ctx
+ctxFromTransform (RSpecify a b) ctx = M.insert a b ctx
+ctxFromTransform (RTFun as r) ctx
+  | RSpecify a b <- r = fold as (M.insert a b ctx)
+  | otherwise = fold as ctx
+ctxFromTransform  _ _ = undefined
+
+fold Nil ctx = ctx
+fold (Cons (RSpecify a b) as) ctx = fold as (M.insert a b ctx)
+fold (Cons _ as) ctx = fold as ctx
 
 type ArgList = Array RType
 
@@ -141,3 +165,11 @@ testSpecifyFun :: RTransform
 testSpecifyFun = specifyType
   (fun [a, array a] component)
   (fun [person, array person] component)
+
+testRealize :: RType
+testRealize = realizeType'
+  testSpecifyFun
+  (fun [a, array a, a, a] component)
+
+findMatches :: RType -> Array RType -> Array (RType /\ RTransform)
+findMatches = undefined
