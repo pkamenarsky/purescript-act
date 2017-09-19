@@ -3,6 +3,7 @@ module Match where
 import Prelude
 import Data.Array
 import Data.List
+import Data.List as L
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
@@ -80,18 +81,52 @@ specifyType (RApp t x) (RApp u y)
 specifyType (RFun args x) (RFun args' x') = RTFun (match M.empty args args' Nil) (specifyType x x')
   where
     match :: M.Map Var Const -> List RType -> List RType -> List RTransform -> List RTransform
-    match ctx (Cons (RVar a) as) b'@(Cons (RConst b) bs) tr
-      | Just v <- M.lookup a ctx
-                  = match ctx (Cons (RConst v) as) b' tr
-      | otherwise = match (M.insert a b ctx) as bs (Cons (RSpecify a b) tr) 
-    match ctx (Cons a as) (Cons b bs) tr = match ctx as bs (Cons (specifyType a b) tr) 
+    match ctx (Cons a as) b'@(Cons b bs) tr
+      | Just (v /\ c) <- matchVar a b
+        = case M.lookup v ctx of
+            Nothing -> match (M.insert v c ctx) as bs (Cons (specifyType a b) tr)
+            Just c' -> if c == c'
+              then match ctx as bs (Cons (specifyType a b) tr)
+              else match ctx as bs (Cons RNoMatch tr)
+      | otherwise = match ctx as bs (Cons (specifyType a b) tr) 
     match _ _ _ tr = tr
 specifyType _ _ = RNoMatch
+
+matchVar :: RType -> RType -> Maybe (Var /\ Const)
+matchVar (RVar a) (RConst b)     = Just (a /\ b)
+matchVar (RApp a b) (RApp a' b')
+                     | a == a'   = matchVar b b'
+                     | otherwise = Nothing
+matchVar _ _                     = Nothing
 
 type ArgList = Array RType
 
 specifyFun :: RType -> ArgList -> Array RType -> Array (RTransform /\ ArgList)
 specifyFun = undefined
 
+--------------------------------------------------------------------------------
+
 testSpecify :: RTransform
-testSpecify = specifyType (RApp (RConst (Const "array")) (RVar (Var "a"))) (RApp (RConst (Const "array")) (RConst (Const "person")))
+testSpecify = specifyType
+  (RApp (RConst (Const "array")) (RVar (Var "a")))
+  (RApp (RConst (Const "array")) (RConst (Const "person")))
+
+a :: RType
+a = RVar (Var "a")
+
+person :: RType
+person = RConst (Const "person")
+
+component :: RType
+component = RConst (Const "component")
+
+array :: RType -> RType
+array t = RApp (RConst (Const "array")) t
+
+fun :: Array RType -> RType -> RType
+fun args t = RFun (L.fromFoldable args) t
+
+testSpecifyFun :: RTransform
+testSpecifyFun = specifyType
+  (fun [a, array a] component)
+  (fun [component, array person] component)
