@@ -106,11 +106,14 @@ mapEffectF lns (Effect json eff next) = Effect json eff next
 mapEffect :: forall eff st stt a. Lens' st stt -> Effect eff stt a -> Effect eff st a
 mapEffect lns m = hoistFree (mapEffectF lns) m
 
-modify :: forall eff st. (st -> st) -> (Effect eff st Unit)
+modify :: forall eff st. (st -> st) -> Effect eff st Unit
 modify f = liftF $ Modify f unit
 
+modify' :: forall eff st stt. Lens' st stt -> (stt -> stt) -> Effect eff st Unit
+modify' l f = liftF $ Modify (over l f) unit
+
 getHTTP :: forall eff st. String -> Effect eff st (Maybe String)
-getHTTP url = liftF (Effect (fromString url) (\_ -> pure $ fromString "Result'") toString)
+getHTTP url = liftF $ Effect (fromString url) (\_ -> pure $ fromString "Result'") toString
 
 log :: forall eff st. String -> Effect eff st Unit
 log str = liftF $ Log str unit
@@ -168,6 +171,9 @@ type Props eff st = (Effect eff st Unit -> Handler st) -> P.Props
 
 state :: forall eff st. (st -> Component eff st) -> Component eff st
 state f = { render: \effect st -> (f st).render effect st }
+
+state' :: forall eff st stt. Lens' st stt -> (stt -> Component eff st) -> Component eff st
+state' l f = { render: \effect st -> (f (st ^. l)).render effect st }
 
 zoom :: forall eff st stt. Lens' st stt -> Component eff stt -> Component eff st
 zoom lns cmp = { render: \effect st -> cmp.render (\e -> effect (mapEffect lns e)) (view lns st) }
@@ -297,6 +303,8 @@ mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
+type AppState = (Tuple (Tuple (Maybe RPosition) (Maybe RPosition)) (Tuple (Maybe String) (Array Int)))
+
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
@@ -333,12 +341,13 @@ counter =
     , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
     ]
 
-list :: forall eff. Component eff (Tuple (Tuple (Maybe RPosition) (Maybe RPosition)) (Tuple (Maybe String) (Array Int)))
+list :: forall eff. Component eff AppState
 list =
   div
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
-      [ zoom _1 $ rcomponent testRComponent
+      [ rcomponent' _1 testRComponent
+      -- zoom _1 $ rcomponent testRComponent
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -396,6 +405,27 @@ px x = show x <> "px"
 
 line :: forall eff st. RPosition -> RPosition -> Component eff st
 line start end = path [ strokeWidth (px 3.0), stroke "#333333", d ("M" <> show start.x <> " " <> show start.y <> " L" <> show end.x <> " " <> show end.y)] []
+
+rcomponent' :: forall eff. Lens' AppState (Tuple (Maybe RPosition) (Maybe RPosition)) -> RComponent -> Component eff AppState
+rcomponent' l rcmp = state' l \st -> g [] $
+  [ rect
+    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
+    []
+  ]
+  <> map (arg l) (zip (range 0 (length rcmp.args)) (rcmp.args))
+  <> case st of
+       Tuple (Just start) (Just end)  -> [ line start end ]
+       _ -> []
+  where
+    arg :: Lens' AppState (Tuple (Maybe RPosition) (Maybe RPosition)) -> Tuple Int RArg -> Component eff AppState
+    arg l (Tuple index rarg) = circle
+      [ onMouseDrag drag
+      , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+      []
+      where
+        drag (DragStart e) = modify' l $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
+        drag (DragMove e)  = modify' l \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+        drag (DragEnd e)   = modify' l \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
 
 rcomponent :: forall eff. RComponent -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
 rcomponent rcmp = state \st -> g [] $
