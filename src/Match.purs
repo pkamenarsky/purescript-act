@@ -23,7 +23,11 @@ instance showRType :: Show RType
 type RArg = { name :: String, type :: RType }
 
 matchArgs :: RType -> Array RType -> Array (Tuple RType (Array RType))
-matchArgs t args = undefined
+matchArgs t args = catMaybes $ do
+  arg <- args
+  case matchArg t arg args of
+    Just args' -> pure $ Just $ Tuple arg args'
+    Nothing    -> pure Nothing
   where
     replaceArg :: String -> String -> RType -> RType
     replaceArg a b (RConst a') = RConst a'
@@ -36,7 +40,7 @@ matchArgs t args = undefined
     matchArg (RConst a) (RConst b) args
       | a == b    = Just args
       | otherwise = Nothing
-    matchArg (RVar a) (RConst b) args = Just $ map (replaceArg a b) args
+    matchArg (RConst a) (RVar b) args = Just $ map (replaceArg b a) args
     matchArg (RArray a) (RArray b) args = matchArg a b args
     matchArg _ _ _ = Nothing
 
