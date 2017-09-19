@@ -13,7 +13,7 @@ import Data.Generic
 undefined :: forall a. a
 undefined = unsafeCoerce unit
 
-data RType = RVar String | RConst String | RArray RType
+data RType = RVar String | RConst String | RApp RType RType | RFun RType RType
 
 derive instance genericRType :: Generic RType
 
@@ -34,15 +34,17 @@ matchArgs t args = catMaybes $ do
     replaceArg a b (RVar a')
       | a == a'   = RConst b
       | otherwise = RVar a'
-    replaceArg a b (RArray a') = RArray $ replaceArg a b a'
+    -- replaceArg a b (RArray a') = RArray $ replaceArg a b a'
+    replaceArg _ _ b = b
 
     matchArg :: RType -> RType -> Array RType -> Maybe (Array RType)
     matchArg (RConst a) (RConst b) args
       | a == b    = Just args
       | otherwise = Nothing
     matchArg (RConst a) (RVar b) args = Just $ map (replaceArg b a) args
-    matchArg (RArray a) (RArray b) args = matchArg a b args
+    matchArg _ _ _ = Nothing
+    -- matchArg (RArray a) (RArray b) args = matchArg a b args
     matchArg _ _ _ = Nothing
 
 testArgs :: Array RType
-testArgs = [RVar "a", RArray (RVar "a")]
+testArgs = [RVar "a", RApp (RConst "array") (RVar "a")]
