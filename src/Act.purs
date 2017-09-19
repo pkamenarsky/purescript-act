@@ -358,14 +358,32 @@ testRComponent :: RComponent
 testRComponent =
   { pos: { x: 100.0, y: 100.0 }
   , label: "Add"
-  , args: [ { name: "add", type: RForall "A" } ]
+  , args: [ { name: "add", type: RVar "A" } ]
   }
 
 type RPosition = { x :: Number, y :: Number }
 
-data RType = RForall String | RNamed String | RArray RType
+data RType = RVar String | RConst String | RArray RType
 
 type RArg = { name :: String, type :: RType }
+
+matchArgs :: RArg -> Array RArg -> Array (Tuple RArg (Array RArg))
+matchArgs = undefined
+  where
+    replaceArg :: String -> String -> RType -> RType
+    replaceArg a b (RConst a') = RConst a'
+    replaceArg a b (RVar a')
+      | a == a'   = RConst b
+      | otherwise = RVar a'
+    replaceArg a b (RArray a') = RArray $ replaceArg a b a'
+
+    matchArg :: RType -> RType -> Array RType -> Maybe (Array RType)
+    matchArg (RConst a) (RConst b) args
+      | a == b    = Just args
+      | otherwise = Nothing
+    matchArg (RVar a) (RConst b) args = Just $ map (replaceArg a b) args
+    matchArg (RArray a) (RArray b) args = matchArg a b args
+    matchArg _ _ _ = Nothing
 
 type RComponent =
   { pos   :: RPosition

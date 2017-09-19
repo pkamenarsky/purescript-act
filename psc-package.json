@@ -12,6 +12,7 @@
       "proxy",
       "react",
       "react-dom",
+      "psci-support",
       "tuples",
       "transformers",
       "profunctor-lenses"
