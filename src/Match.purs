@@ -4,9 +4,11 @@ import Control.Apply
 
 import Prelude
 import Data.Array
+import Data.Array as A
 import Data.List
 import Data.List as L
 import Data.Maybe
+import Data.String
 import Data.Tuple
 import Data.Tuple.Nested
 import Data.Traversable
@@ -43,11 +45,14 @@ data RType = RVar Var
 
 derive instance genericRType :: Generic RType
 
-instance showRType :: Show RType
-  where show = gShow
+instance showRType :: Show RType where
+  show (RVar (Var a))     = a
+  show (RConst (Const a)) = a
+  show (RApp a b)         = show a <> " " <> show b
+  show (RFun as r)        = "(" <> joinWith " -> " (A.fromFoldable (map show as <> (Cons (show r) Nil))) <> ")"
 
-instance eqRType :: Eq RType
-  where eq = gEq
+instance eqRType :: Eq RType where
+  eq = gEq
 
 data RCoercion = RCoercion RType RType
 
@@ -120,7 +125,7 @@ ctxFromTransform (RSpecify a b) ctx = M.insert a b ctx
 ctxFromTransform (RTFun as r) ctx
   | RSpecify a b <- r = fold as (M.insert a b ctx)
   | otherwise = fold as ctx
-ctxFromTransform  _ _ = undefined
+ctxFromTransform  _ ctx = ctx
 
 fold Nil ctx = ctx
 fold (Cons (RSpecify a b) as) ctx = fold as (M.insert a b ctx)
@@ -152,6 +157,12 @@ a = RVar (Var "a")
 person :: RType
 person = RConst (Const "person")
 
+address :: RType
+address = RConst (Const "address")
+
+location :: RType
+location = RConst (Const "location")
+
 component :: RType
 component = RConst (Const "component")
 
@@ -171,5 +182,24 @@ testRealize = realizeType'
   testSpecifyFun
   (fun [a, array a, a, a] component)
 
-findMatches :: RType -> Array RType -> Array (RType /\ RTransform)
-findMatches = undefined
+findMatches :: RType -> Array RType -> Array RTransform
+findMatches t = map (specifyType t)
+
+sidebarTypes :: Array RType
+sidebarTypes =
+  [ person
+  , array person
+  , address
+  , array address
+  , location
+  , array location
+  ]
+
+componentType :: RType /\ RType
+componentType = array a /\ fun [ array a, fun [a] component ] component
+
+testComponentMatches :: Array RType
+testComponentMatches = map (flip realizeType' args) matches
+  where
+    arg /\ args = componentType
+    matches     = findMatches arg sidebarTypes
