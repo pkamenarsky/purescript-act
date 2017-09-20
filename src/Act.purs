@@ -388,6 +388,12 @@ list =
 
 --------------------------------------------------------------------------------
 
+arrayRange :: forall a. Array a -> Array Int
+arrayRange a = 0 .. (length a - 1)
+
+indexedRange :: forall a. Array a -> Array (Int × a)
+indexedRange a = zip (arrayRange a) a
+
 type Vec  = Number × Number
 type Size = Number × Number
 type Rect = Number × Number × Number × Number
@@ -403,43 +409,55 @@ label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica N
 
 type Label = String
 
+type UIExternal = 
+  { conns   :: Array (Label × Rect × RArgIndex)
+  }
+
+type UIInternal = 
+  { outer     :: Rect
+  , inner     :: Rect
+  , arg       :: RArgIndex
+  , conns     :: Array (Label × Rect × RArgIndex)
+  , component :: Maybe UIComponent
+  }
+
 newtype UIComponent = UIComponent
   { component :: RComponent
   , bounds    :: Rect
-  , external  ::
-    { conns   :: Array (Label × Rect × RArgIndex)
-    }
-  , internal  :: Array
-    { outer     :: Rect
-    , inner     :: Rect
-    , arg       :: RArgIndex
-    , conns     :: Array (Label × Rect × RArgIndex)
-    , component :: Maybe UIComponent
-    }
+  , external  :: UIExternal
+  , internal  :: Array UIInternal
   }
-
-arrayRange :: forall a. Array a -> Array Int
-arrayRange a = 0 .. (length a - 1)
 
 layoutUIComponent :: RComponent -> Rect -> UIComponent
 layoutUIComponent cmp@(RComponent rcmp) bounds@(bx × by × bw × bh) = UIComponent
   { component: cmp
   , bounds   : bounds
   , external :
-    { conns: map exconn (zip (arrayRange rcmp.external) rcmp.external)
+    { conns: map exconn (indexedRange rcmp.external)
     }
-  , internal : undefined
+  , internal : map internal (indexedRange rcmp.internal)
   }
   where
     ccount = I.toNumber (length rcmp.internal)
     gap    = 30.0
 
     cw     = (bw - (gap * (ccount + 1.0))) / ccount
-    -- cx     = bx + (index' + 1.0) * gap + index' * cw
     cy     = by + gap
 
     exconn :: Int × RType × RArgIndex -> Label × Rect × RArgIndex
     exconn (index × t × aindex) = show t × (bx - 30.0 - 7.0 × (by + 7.0 + I.toNumber index * 30.0) × 10.0 × 10.0) × aindex
+
+    internal :: Int × Array (RType × RArgIndex) × RArgIndex -> UIInternal
+    internal (index × args × aindex) =
+      { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
+      , inner    : (cx + gap) × (by + gap + gap) × (cw - gap * 2.0) × (bh - 4.0 * gap)
+      , arg      : aindex
+      , conns    : undefined
+      , component: Nothing
+      }
+      where
+        index' = I.toNumber index
+        cx     = bx + (index' + 1.0) * gap + index' * cw
 
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
