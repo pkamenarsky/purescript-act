@@ -78,9 +78,16 @@ type Ctx = M.Map Var Const
 
 type Index = Int
 
+newtype RArgIndex = RArgIndex Int
+
+derive instance genericRArgIndex :: Generic RArgIndex
+
+argRange :: Int -> Array RArgIndex
+argRange x = map RArgIndex $ A.range 0 (x - 1)
+
 newtype RComponent = RComponent
-  { external :: Array (RType × Index)
-  , internal :: Array (Array (RType × Index) × Index)
+  { external :: Array (RType × RArgIndex)
+  , internal :: Array (Array (RType × RArgIndex) × RArgIndex)
   }
 
 derive instance genericRComponent :: Generic RComponent
@@ -103,15 +110,15 @@ extractComponents t = extractComponents' t mempty
     extractComponents' :: RType -> RComponent -> RComponent
     extractComponents' (RConst (Const "component")) cmp' = cmp'
     extractComponents' (RFun args (RConst (Const "component"))) cmp'
-      = foldr extractArg cmp' (L.zip args (0 L... (L.length args - 1)))
+      = foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
       where
-        extractArg :: RType × Index -> RComponent -> RComponent
+        extractArg :: RType × RArgIndex -> RComponent -> RComponent
         extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RFun args (RConst (Const "component"))) × i) cmp
-                                     = cmp <> RComponent { external: [], internal: [A.fromFoldable (L.zip args (0 L... (L.length args - 1))) × i] }
+                                     = cmp <> RComponent { external: [], internal: [(A.zip (A.fromFoldable args) (argRange $ L.length args)) × i] }
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
     extractComponents' _ _ = undefined
 
@@ -173,8 +180,11 @@ sidebarTypes =
   , array location
   ]
 
+navigationStack :: RType
+navigationStack = RConst (Const "navigationStack")
+
 componentType :: RType
-componentType = fun [ array a, b, location, fun [a, b] component, fun [location] component ] component
+componentType = fun [ navigationStack, array a, fun [a] component, fun [a] component ] component
 
 testComponent :: RComponent
 testComponent = extractComponents componentType

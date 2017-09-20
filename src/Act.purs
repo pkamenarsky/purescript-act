@@ -401,6 +401,46 @@ line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("
 label :: forall eff st. Vec -> String -> String -> Component eff st
 label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "700", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
 
+type Label = String
+
+newtype UIComponent = UIComponent
+  { component :: RComponent
+  , bounds    :: Rect
+  , external  ::
+    { conns   :: Array (Label × Rect × RArgIndex)
+    }
+  , internal  :: Array
+    { outer     :: Rect
+    , inner     :: Rect
+    , arg       :: RArgIndex
+    , conns     :: Array (Label × Rect × RArgIndex)
+    , component :: Maybe UIComponent
+    }
+  }
+
+arrayRange :: forall a. Array a -> Array Int
+arrayRange a = 0 .. (length a - 1)
+
+layoutUIComponent :: RComponent -> Rect -> UIComponent
+layoutUIComponent cmp@(RComponent rcmp) bounds@(bx × by × bw × bh) = UIComponent
+  { component: cmp
+  , bounds   : bounds
+  , external :
+    { conns: map exconn (zip (arrayRange rcmp.external) rcmp.external)
+    }
+  , internal : undefined
+  }
+  where
+    ccount = I.toNumber (length rcmp.internal)
+    gap    = 30.0
+
+    cw     = (bw - (gap * (ccount + 1.0))) / ccount
+    -- cx     = bx + (index' + 1.0) * gap + index' * cw
+    cy     = by + gap
+
+    exconn :: Int × RType × RArgIndex -> Label × Rect × RArgIndex
+    exconn (index × t × aindex) = show t × (bx - 30.0 - 7.0 × (by + 7.0 + I.toNumber index * 30.0) × 10.0 × 10.0) × aindex
+
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
@@ -410,7 +450,7 @@ rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   <> map (point "end" (bx - 30.0 × by)) (zip (map (show <<< fst) rcmp.external) (0.. (length rcmp.external - 1)))
   <> map container (zip rcmp.internal (0 .. (length rcmp.internal - 1)))
   where
-    container :: (Array (RType × Index) × Index) × Index -> Component eff st
+    container :: (Array (RType × RArgIndex) × RArgIndex) × Index -> Component eff st
     container ((args × _) × index) = g [] $
       [ rect
         [ x (px cx), y (px $ by + gap), width (px cw), height (px $ bh - 2.0 * gap), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
