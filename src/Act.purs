@@ -372,7 +372,7 @@ list =
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
       [ -- rcomponent' _1 testRComponent
-      rcomponent testComponent (500.0 × 100.0 × 200.0 × 200.0)
+      rcomponent testComponent (500.5 × 100.5 × 400.0 × 400.0)
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -399,21 +399,36 @@ line :: forall eff st. Vec -> Vec -> Component eff st
 line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show sx <> " " <> show sy <> " L" <> show ex <> " " <> show ey)] []
 
 label :: forall eff st. Vec -> String -> String -> Component eff st
-label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "500", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
+label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "700", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
 
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
-    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 8.0), ry (px 8.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
   <> map (point "end" (bx - 30.0 × by)) (zip (map (show <<< fst) rcmp.external) (0.. (length rcmp.external - 1)))
-  <> map (point "start" (bx + 30.0 × by + 30.0)) (zip (map (show <<< fst) rcmp.internal) (0.. (length rcmp.internal - 1)))
+  <> map container (zip rcmp.internal (0 .. (length rcmp.internal - 1)))
   where
+    container :: (Array (RType × Index) × Index) × Index -> Component eff st
+    container ((args × _) × index) = g [] $
+      [ rect
+        [ x (px cx), y (px $ by + gap), width (px cw), height (px $ bh - 2.0 * gap), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+        []
+      ]
+      <> map (point "start" (cx + 30.0 × cy + gap)) (zip (map (show <<< fst) args) (0.. (length args - 1)))
+      where
+        index' = I.toNumber index
+        gap    = 20.0
+        ccount = I.toNumber (length rcmp.internal)
+        cw     = (bw - (gap * (ccount + 1.0))) / ccount
+        cx     = bx + (index' + 1.0) * gap + index' * cw
+        cy     = by + gap
+
     point :: String -> Vec -> String × Index -> Component eff st
     point align (x × y) (name × index) = g []
       [ circle
-        [ cx (px x'), cy (px y'), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+        [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 2.0) ]
         []
       , label (x' + offset align × y' + 4.0) align name
       ]
