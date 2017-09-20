@@ -115,11 +115,17 @@ extractComponents t = extractComponents' t mempty
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
     extractComponents' _ _ = undefined
 
-unifyType :: Const -> RType -> RTransform
-unifyType t@(Const c) (RConst t'@(Const c'))
+unifyType :: RType -> RType -> RTransform
+unifyType (RConst t@(Const c)) (RConst t'@(Const c'))
   | c == c'   = REqual
   | otherwise = RMap t t'
-unifyType t@(Const _) (RVar v) = RSpecify v t
+unifyType (RConst t@(Const _)) (RVar v) = RSpecify v t
+unifyType t@(RApp _ _) t'@(RApp _ _) = unifyApp t t'
+  where
+    unifyApp (RApp f x) (RApp f' x')
+      | f == f'   = unifyApp x x'
+      | otherwise = RNoMatch
+    unifyApp u u' = unifyType u u'
 unifyType _ _ = RNoMatch
 
 specifyType :: RTransform -> RType -> RType
@@ -171,7 +177,7 @@ componentType :: RType
 componentType = fun [ array a, b, fun [a, b] component ] component
 
 testUnify :: RTransform
-testUnify = unifyType (Const "person") a
+testUnify = unifyType (array person) (array a)
 
 testSpecify :: RType
 testSpecify = specifyType testUnify componentType
