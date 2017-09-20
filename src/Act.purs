@@ -22,6 +22,7 @@ import Prelude
 import Match
 import DOM as D
 import DOM.Node.Types as D
+import Data.Array as A
 import Data.Int as I
 import React as R
 import React.DOM as R
@@ -348,11 +349,20 @@ main = void (elm' >>= RD.render ui)
 
 --------------------------------------------------------------------------------
 
+uicmp :: UIComponent
+uicmp = UIComponent c1'
+  where
+   UIComponent c1 = layoutUIComponent (300.5 × 100.5 × 800.0 × 400.0) testComponent
+   c2 = case c1.internal A.!! 0 of
+     Just i  -> layoutUIComponent i.inner testComponent2
+     Nothing -> undefined
+   c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
+
 list :: forall eff. Component eff AppState
 list = div
  []
- [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
-   [ uicomponent (layoutUIComponent (500.5 × 100.5 × 400.0 × 400.0) testComponent)
+ [ svg [ shapeRendering "geometricPrecision", width "2000px", height "1000px" ]
+   [ uicomponent uicmp
    ]
  ]
 
@@ -420,7 +430,7 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
     internal :: Int × Array (RType × RArgIndex) × RArgIndex -> UIInternal
     internal (index × args × aindex) =
       { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
-      , inner    : (cx + gap) × (by + gap + gap) × (cw - gap * 2.0) × (bh - 4.0 * gap)
+      , inner    : (cx + gap * 5.0) × (by + gap * 4.0) × (cw - gap * 6.0) × (bh - 6.0 * gap)
       , arg      : aindex
       , conns    : map (conn ((cx + gap) × (cy + gap))) (indexedRange args)
       , component: Nothing
@@ -445,10 +455,14 @@ uicomponent (UIComponent uicmp) = g [] $
       [ rect
         [ x (px ox), y (px oy), width (px ow), height (px oh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
         []
-      , rect
-        [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
-        []
       ]
+      <> case uiint.component of
+           Just child -> [ uicomponent child ]
+           Nothing    ->
+             [ rect
+               [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
+               []
+             ]
       <> map (conn "start") uiint.conns
       where
         ox × oy × ow × oh = uiint.outer

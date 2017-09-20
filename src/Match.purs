@@ -104,6 +104,7 @@ instance semigroupRComponent :: Semigroup RComponent where
     , internal: cmp1.internal <> cmp2.internal
     }
 
+-- TODO: nested components
 extractComponents :: RType -> RComponent
 extractComponents t = extractComponents' t mempty
   where
@@ -184,10 +185,16 @@ navigationStack :: RType
 navigationStack = RConst (Const "navigationStack")
 
 componentType :: RType
-componentType = fun [ navigationStack, array a, fun [a] component, fun [location, person] component ] component
+componentType = fun [ navigationStack, array a, fun [a] component, fun [location] component ] component
+
+componentType2 :: RType
+componentType2 = fun [ location ] component
 
 testComponent :: RComponent
 testComponent = extractComponents componentType
+
+testComponent2 :: RComponent
+testComponent2 = extractComponents componentType2
 
 testUnify :: RTransform
 testUnify = unifyType (array person) (array a)
