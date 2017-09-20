@@ -9,7 +9,6 @@ import Data.Argonaut.Core
 import Data.Array
 import Data.Functor
 import Data.Exists
-import Data.Int as I
 import Data.Generic.Rep
 import Data.Traversable
 import Data.Lens
@@ -20,8 +19,10 @@ import Data.Tuple
 import Type.Proxy
 import Unsafe.Coerce
 import Prelude
+import Match
 import DOM as D
 import DOM.Node.Types as D
+import Data.Int as I
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
@@ -303,7 +304,7 @@ mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
-type AppState = (Tuple (Tuple (Maybe RPosition) (Maybe RPosition)) (Tuple (Maybe String) (Array Int)))
+type AppState = (Maybe Vec × Maybe Vec) × (Maybe String × Array Int)
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
@@ -346,8 +347,8 @@ list =
   div
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
-      [ rcomponent' _1 testRComponent
-      -- zoom _1 $ rcomponent testRComponent
+      [ -- rcomponent' _1 testRComponent
+      rcomponent testComponent (100.0 × 100.0 × 200.0 × 200.0)
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -363,87 +364,40 @@ list =
 
 --------------------------------------------------------------------------------
 
-testRComponent :: RComponent
-testRComponent =
-  { pos: { x: 100.0, y: 100.0 }
-  , label: "Add"
-  , args: [ { name: "add", type: RVar "A" } ]
-  }
-
-type RPosition = { x :: Number, y :: Number }
-
-data RType = RVar String | RConst String | RArray RType
-
-type RArg = { name :: String, type :: RType }
-
-matchArgs :: RArg -> Array RArg -> Array (Tuple RArg (Array RArg))
-matchArgs = undefined
-  where
-    replaceArg :: String -> String -> RType -> RType
-    replaceArg a b (RConst a') = RConst a'
-    replaceArg a b (RVar a')
-      | a == a'   = RConst b
-      | otherwise = RVar a'
-    replaceArg a b (RArray a') = RArray $ replaceArg a b a'
-
-    matchArg :: RType -> RType -> Array RType -> Maybe (Array RType)
-    matchArg (RConst a) (RConst b) args
-      | a == b    = Just args
-      | otherwise = Nothing
-    matchArg (RVar a) (RConst b) args = Just $ map (replaceArg a b) args
-    matchArg (RArray a) (RArray b) args = matchArg a b args
-    matchArg _ _ _ = Nothing
-
-type RComponent =
-  { pos   :: RPosition
-  , label :: String
-  , args  :: Array RArg
-  }
+type Vec  = Number × Number
+type Size = Number × Number
+type Rect = Number × Number × Number × Number
 
 px :: Number -> String
 px x = show x <> "px"
 
-line :: forall eff st. RPosition -> RPosition -> Component eff st
-line start end = path [ strokeWidth (px 3.0), stroke "#333333", d ("M" <> show start.x <> " " <> show start.y <> " L" <> show end.x <> " " <> show end.y)] []
+line :: forall eff st. Vec -> Vec -> Component eff st
+line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show sx <> " " <> show sy <> " L" <> show ex <> " " <> show ey)] []
 
-rcomponent' :: forall eff. Lens' AppState (Tuple (Maybe RPosition) (Maybe RPosition)) -> RComponent -> Component eff AppState
-rcomponent' l rcmp = state' l \st -> g [] $
+rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
+rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
-    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
+    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 5.0), ry (px 5.0), stroke "#d90e59", strokeWidth "3" ]
     []
   ]
-  <> map (arg l) (zip (range 0 (length rcmp.args)) (rcmp.args))
-  <> case st of
-       Tuple (Just start) (Just end)  -> [ line start end ]
-       _ -> []
+  <> map (point (bx - 20.0 × by)) (0.. (length rcmp.external - 1))
   where
-    arg :: Lens' AppState (Tuple (Maybe RPosition) (Maybe RPosition)) -> Tuple Int RArg -> Component eff AppState
-    arg l (Tuple index rarg) = circle
-      [ onMouseDrag drag
-      , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+    point :: Vec -> Index -> Component eff st
+    point (x × y) index = circle
+      [ cx (px x), cy (px $ y - I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
       []
-      where
-        drag (DragStart e) = modify' l $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
-        drag (DragMove e)  = modify' l \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
-        drag (DragEnd e)   = modify' l \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
 
-rcomponent :: forall eff. RComponent -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
-rcomponent rcmp = state \st -> g [] $
-  [ rect
-    [ x (px rcmp.pos.x), y (px rcmp.pos.y), width (px 150.0), height (px 50.0), rx (px 5.0), ry (px 5.0), fill  "#d90e59" ]
-    []
-  ]
-  <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
-  <> case st of
-       Tuple (Just start) (Just end)  -> [ line start end ]
-       _ -> []
-  where
-    arg :: Tuple Int RArg -> Component eff (Tuple (Maybe RPosition) (Maybe RPosition))
-    arg (Tuple index rarg) = circle
-      [ onMouseDrag drag
-      , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
-      []
-      where
-        drag (DragStart e) = modify $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
-        drag (DragMove e)  = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
-        drag (DragEnd e)   = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+  -- <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
+  -- <> case st of
+  --      Just start × Just end -> [ line start end ]
+  --      _                     -> []
+  -- where
+    -- arg :: Int × RArg -> Component eff (Maybe Position × Maybe Position)
+    -- arg (Tuple index rarg) = circle
+    --   [ onMouseDrag drag
+    --   , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+    --   []
+    --   where
+    --     drag (DragStart e) = modify $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
+    --     drag (DragMove e)  = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
+    --     drag (DragEnd e)   = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })

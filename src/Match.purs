@@ -176,6 +176,9 @@ sidebarTypes =
 componentType :: RType
 componentType = fun [ array a, b, fun [a, b] component ] component
 
+testComponent :: RComponent
+testComponent = extractComponents componentType
+
 testUnify :: RTransform
 testUnify = unifyType (array person) (array a)
 
