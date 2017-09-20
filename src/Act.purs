@@ -264,8 +264,29 @@ strokeWidth v _ = P.unsafeMkProps "strokeWidth" v
 fill :: forall eff st. String -> Props eff st
 fill v _ = P.unsafeMkProps "fill" v
 
+textAlign :: forall eff st. String -> Props eff st
+textAlign v _ = P.unsafeMkProps "textAlign" v
+
+textAnchor :: forall eff st. String -> Props eff st
+textAnchor v _ = P.unsafeMkProps "textAnchor" v
+
+fontFamily :: forall eff st. String -> Props eff st
+fontFamily v _ = P.unsafeMkProps "fontFamily" v
+
+fontSize :: forall eff st. String -> Props eff st
+fontSize v _ = P.unsafeMkProps "fontSize" v
+
+fontWeight :: forall eff st. String -> Props eff st
+fontWeight v _ = P.unsafeMkProps "fontWeight" v
+
+color :: forall eff st. String -> Props eff st
+color v _ = P.unsafeMkProps "color" v
+
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+style :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+style props children = { render: \effect st -> [ R.style (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 svg :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 svg props children = { render: \effect st -> [ SVG.svg (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
@@ -281,6 +302,9 @@ rect props children = { render: \effect st -> [ SVG.rect (map (\p -> p effect) p
 
 path :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 path props children = { render: \effect st -> [ SVG.path (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+svgtext :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+svgtext props children = { render: \effect st -> [ SVG.text (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 text :: forall eff st. String -> Component eff st
 text str = { render: \_ _ -> [ R.text str ] }
@@ -374,19 +398,32 @@ px x = show x <> "px"
 line :: forall eff st. Vec -> Vec -> Component eff st
 line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show sx <> " " <> show sy <> " L" <> show ex <> " " <> show ey)] []
 
+label :: forall eff st. Vec -> String -> String -> Component eff st
+label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "500", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
+
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
     [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 5.0), ry (px 5.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
-  <> map (point (bx - 30.0 × by)) (0.. (length rcmp.external - 1))
-  <> map (point (bx + 30.0 × by + 30.0)) (0.. (length rcmp.internal - 1))
+  <> map (point "end" (bx - 30.0 × by)) (zip (map show rcmp.external) (0.. (length rcmp.external - 1)))
+  <> map (point "start" (bx + 30.0 × by + 30.0)) (zip (map show rcmp.internal) (0.. (length rcmp.internal - 1)))
   where
-    point :: Vec -> Index -> Component eff st
-    point (x × y) index = circle
-      [ cx (px $ x - 7.0), cy (px $ y + 7.0 + I.toNumber index * 30.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
-      []
+    point :: String -> Vec -> String × Index -> Component eff st
+    point align (x × y) (name × index) = g []
+      [ circle
+        [ cx (px x'), cy (px y'), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+        []
+      , label (x' + offset align × y' + 4.0) align name
+      ]
+      where
+        x' = x - 7.0
+        y' = y + 7.0 + I.toNumber index * 30.0
+
+        offset "start" = 20.0
+        offset "end"   = -20.0
+        offset _       = 0.0
 
   -- <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
   -- <> case st of
