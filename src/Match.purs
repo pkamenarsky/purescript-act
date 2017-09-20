@@ -174,7 +174,7 @@ sidebarTypes =
   ]
 
 componentType :: RType
-componentType = fun [ array a, b, location, fun [a, b] component, fun [b] component ] component
+componentType = fun [ array a, b, location, fun [a, b] component, fun [location] component ] component
 
 testComponent :: RComponent
 testComponent = extractComponents componentType

@@ -419,7 +419,7 @@ rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
       <> map (point "start" (cx + 30.0 × cy + gap)) (zip (map (show <<< fst) args) (0.. (length args - 1)))
       where
         index' = I.toNumber index
-        gap    = 20.0
+        gap    = 30.0
         ccount = I.toNumber (length rcmp.internal)
         cw     = (bw - (gap * (ccount + 1.0))) / ccount
         cx     = bx + (index' + 1.0) * gap + index' * cw
