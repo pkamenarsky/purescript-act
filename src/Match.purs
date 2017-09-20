@@ -184,7 +184,7 @@ navigationStack :: RType
 navigationStack = RConst (Const "navigationStack")
 
 componentType :: RType
-componentType = fun [ navigationStack, array a, fun [a] component, fun [a] component ] component
+componentType = fun [ navigationStack, array a, fun [a] component, fun [location, person] component ] component
 
 testComponent :: RComponent
 testComponent = extractComponents componentType

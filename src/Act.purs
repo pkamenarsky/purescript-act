@@ -261,6 +261,9 @@ stroke v _ = P.unsafeMkProps "stroke" v
 strokeWidth :: forall eff st. String -> Props eff st
 strokeWidth v _ = P.unsafeMkProps "strokeWidth" v
 
+strokeDashArray :: forall eff st. String -> Props eff st
+strokeDashArray v _ = P.unsafeMkProps "strokeDasharray" v
+
 fill :: forall eff st. String -> Props eff st
 fill v _ = P.unsafeMkProps "fill" v
 
@@ -372,7 +375,8 @@ list =
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
       [ -- rcomponent' _1 testRComponent
-      rcomponent testComponent (500.5 × 100.5 × 400.0 × 400.0)
+      -- rcomponent testComponent (500.5 × 100.5 × 400.0 × 400.0)
+      uicomponent (layoutUIComponent (500.5 × 100.5 × 400.0 × 400.0) testComponent)
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -410,14 +414,14 @@ label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica N
 type Label = String
 
 type UIExternal = 
-  { conns   :: Array (Label × Rect × RArgIndex)
+  { conns   :: Array (Label × Vec × RArgIndex)
   }
 
 type UIInternal = 
   { outer     :: Rect
   , inner     :: Rect
   , arg       :: RArgIndex
-  , conns     :: Array (Label × Rect × RArgIndex)
+  , conns     :: Array (Label × Vec × RArgIndex)
   , component :: Maybe UIComponent
   }
 
@@ -428,12 +432,12 @@ newtype UIComponent = UIComponent
   , internal  :: Array UIInternal
   }
 
-layoutUIComponent :: RComponent -> Rect -> UIComponent
-layoutUIComponent cmp@(RComponent rcmp) bounds@(bx × by × bw × bh) = UIComponent
+layoutUIComponent :: Rect -> RComponent -> UIComponent
+layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
   { component: cmp
   , bounds   : bounds
   , external :
-    { conns: map exconn (indexedRange rcmp.external)
+    { conns: map (conn ((bx - gap) × by)) (indexedRange rcmp.external)
     }
   , internal : map internal (indexedRange rcmp.internal)
   }
@@ -444,20 +448,60 @@ layoutUIComponent cmp@(RComponent rcmp) bounds@(bx × by × bw × bh) = UICompon
     cw     = (bw - (gap * (ccount + 1.0))) / ccount
     cy     = by + gap
 
-    exconn :: Int × RType × RArgIndex -> Label × Rect × RArgIndex
-    exconn (index × t × aindex) = show t × (bx - 30.0 - 7.0 × (by + 7.0 + I.toNumber index * 30.0) × 10.0 × 10.0) × aindex
+    conn :: Vec -> Int × RType × RArgIndex -> Label × Vec × RArgIndex
+    conn (ox × oy) (index × t × aindex) = show t × (ox × (oy + I.toNumber index * gap)) × aindex
 
     internal :: Int × Array (RType × RArgIndex) × RArgIndex -> UIInternal
     internal (index × args × aindex) =
       { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
       , inner    : (cx + gap) × (by + gap + gap) × (cw - gap * 2.0) × (bh - 4.0 * gap)
       , arg      : aindex
-      , conns    : undefined
+      , conns    : map (conn ((cx + gap) × (cy + gap))) (indexedRange args)
       , component: Nothing
       }
       where
         index' = I.toNumber index
         cx     = bx + (index' + 1.0) * gap + index' * cw
+
+uicomponent :: forall eff st. UIComponent -> Component eff st
+uicomponent (UIComponent uicmp) = g [] $
+  [ rect
+    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+    []
+  ]
+  <> map (conn "end") uicmp.external.conns
+  <> map container uicmp.internal
+  where
+    bx × by × bw × bh = uicmp.bounds
+
+    container :: UIInternal -> Component eff st
+    container uiint = g [] $
+      [ rect
+        [ x (px ox), y (px oy), width (px ow), height (px oh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+        []
+      , rect
+        [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
+        []
+      ]
+      <> map (conn "start") uiint.conns
+      where
+        ox × oy × ow × oh = uiint.outer
+        ix × iy × iw × ih = uiint.inner
+
+    conn :: String -> Label × Vec × RArgIndex -> Component eff st
+    conn align (name × (x × y) × _) = g []
+      [ circle
+        [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 2.0) ]
+        []
+      , label (x' + offset align × y' + 4.0) align name
+      ]
+      where
+        x' = x - 7.0
+        y' = y + 7.0
+
+        offset "start" = 20.0
+        offset "end"   = -20.0
+        offset _       = 0.0
 
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
