@@ -348,47 +348,13 @@ main = void (elm' >>= RD.render ui)
 
 --------------------------------------------------------------------------------
 
-deleteButton :: forall st eff. (st -> st) -> Lens' st Unit -> Component eff st
-deleteButton delete lns = div [ onClick $ const $ modify delete ] [ text "Delete Button" ]
-
-counter_ :: forall eff st. (st -> st) -> Lens' st Int -> Component eff st
-counter_ delete lns =
-  div [ ]
-    [ div [ zoomProps lns $ onClick $ const $ modify (_ + 1) ] [ text "++" ]
-    , div [ ] [ zoomState lns \ st -> text $ show st ]
-    , div [ zoomProps lns $ onClick $ const $ modify (_ - 1) ] [ text "--" ]
-    , div [ onClick $ const $ modify delete ] [ text "Delete" ]
-    , deleteButton delete (lns <<< unitLens)
-    ]
-
-counter :: forall eff. Component eff Int
-counter =
-  div [ ]
-    [ div [ onClick $ const $ modify (_ + 1) ] [ text "++" ]
-    , div [ ] [ state \st -> text $ show st ]
-    , div [ onClick $ const $ modify (_ - 1) ] [ text "--" ]
-    ]
-
 list :: forall eff. Component eff AppState
-list =
-  div
-    [ ]
-    [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
-      [ -- rcomponent' _1 testRComponent
-      -- rcomponent testComponent (500.5 × 100.5 × 400.0 × 400.0)
-      uicomponent (layoutUIComponent (500.5 × 100.5 × 400.0 × 400.0) testComponent)
-      ]
-    -- , state $ text <<< show
-    -- , div [ onClick $ const ajax ] [ text "+" ]
-    -- , div [ onClick $ const $ modify \(Tuple str arr) -> (Tuple str (cons 0 arr)) ] [ text "+" ]
-    -- , zoom _1 counter
-    -- , foreach (_2 >>> _2) counter
-    -- , foreach_ (_2 >>> _2) \_ d l -> counter_ d l
-    ]
-  where
-    ajax = do
-      res <- getHTTP "http://google.com"
-      modify \(Tuple _ arr) -> (Tuple res (cons 0 arr))
+list = div
+ []
+ [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
+   [ uicomponent (layoutUIComponent (500.5 × 100.5 × 400.0 × 400.0) testComponent)
+   ]
+ ]
 
 --------------------------------------------------------------------------------
 
@@ -502,57 +468,3 @@ uicomponent (UIComponent uicmp) = g [] $
         offset "start" = 20.0
         offset "end"   = -20.0
         offset _       = 0.0
-
-rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
-rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
-  [ rect
-    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
-    []
-  ]
-  <> map (point "end" (bx - 30.0 × by)) (zip (map (show <<< fst) rcmp.external) (0.. (length rcmp.external - 1)))
-  <> map container (zip rcmp.internal (0 .. (length rcmp.internal - 1)))
-  where
-    container :: (Array (RType × RArgIndex) × RArgIndex) × Index -> Component eff st
-    container ((args × _) × index) = g [] $
-      [ rect
-        [ x (px cx), y (px $ by + gap), width (px cw), height (px $ bh - 2.0 * gap), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
-        []
-      ]
-      <> map (point "start" (cx + 30.0 × cy + gap)) (zip (map (show <<< fst) args) (0.. (length args - 1)))
-      where
-        index' = I.toNumber index
-        gap    = 30.0
-        ccount = I.toNumber (length rcmp.internal)
-        cw     = (bw - (gap * (ccount + 1.0))) / ccount
-        cx     = bx + (index' + 1.0) * gap + index' * cw
-        cy     = by + gap
-
-    point :: String -> Vec -> String × Index -> Component eff st
-    point align (x × y) (name × index) = g []
-      [ circle
-        [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 2.0) ]
-        []
-      , label (x' + offset align × y' + 4.0) align name
-      ]
-      where
-        x' = x - 7.0
-        y' = y + 7.0 + I.toNumber index * 30.0
-
-        offset "start" = 20.0
-        offset "end"   = -20.0
-        offset _       = 0.0
-
-  -- <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
-  -- <> case st of
-  --      Just start × Just end -> [ line start end ]
-  --      _                     -> []
-  -- where
-    -- arg :: Int × RArg -> Component eff (Maybe Position × Maybe Position)
-    -- arg (Tuple index rarg) = circle
-    --   [ onMouseDrag drag
-    --   , cx (px $ rcmp.pos.x - 20.0), cy (px $ rcmp.pos.y - 0.0 + I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
-    --   []
-    --   where
-    --     drag (DragStart e) = modify $ const (Tuple (Just { x: e.pageX, y: e.pageY }) Nothing)
-    --     drag (DragMove e)  = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
-    --     drag (DragEnd e)   = modify \(Tuple start _) -> Tuple start (Just { x: e.pageX, y: e.pageY })
