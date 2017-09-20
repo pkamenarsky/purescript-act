@@ -136,6 +136,9 @@ specifyType _ t = t
 a :: RType
 a = RVar (Var "a")
 
+b :: RType
+b = RVar (Var "b")
+
 person :: RType
 person = RConst (Const "person")
 
@@ -165,4 +168,10 @@ sidebarTypes =
   ]
 
 componentType :: RType
-componentType = fun [ array a, fun [a, person] component ] component
+componentType = fun [ array a, b, fun [a, b] component ] component
+
+testUnify :: RTransform
+testUnify = unifyType (Const "person") a
+
+testSpecify :: RType
+testSpecify = specifyType testUnify componentType
