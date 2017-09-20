@@ -372,7 +372,7 @@ list =
     [ ]
     [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
       [ -- rcomponent' _1 testRComponent
-      rcomponent testComponent (300.0 × 100.0 × 200.0 × 200.0)
+      rcomponent testComponent (500.0 × 100.0 × 200.0 × 200.0)
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -404,11 +404,11 @@ label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica N
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
-    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 5.0), ry (px 5.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 8.0), ry (px 8.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
-  <> map (point "end" (bx - 30.0 × by)) (zip (map show rcmp.external) (0.. (length rcmp.external - 1)))
-  <> map (point "start" (bx + 30.0 × by + 30.0)) (zip (map show rcmp.internal) (0.. (length rcmp.internal - 1)))
+  <> map (point "end" (bx - 30.0 × by)) (zip (map (show <<< fst) rcmp.external) (0.. (length rcmp.external - 1)))
+  <> map (point "start" (bx + 30.0 × by + 30.0)) (zip (map (show <<< fst) rcmp.internal) (0.. (length rcmp.internal - 1)))
   where
     point :: String -> Vec -> String × Index -> Component eff st
     point align (x × y) (name × index) = g []
