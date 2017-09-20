@@ -1,19 +1,19 @@
 module Match where
 
 import Control.Apply
-
 import Prelude
 import Data.Array
-import Data.Array as A
 import Data.List
-import Data.List as L
 import Data.Maybe
+import Data.Monoid
 import Data.String
 import Data.Tuple
 import Data.Tuple.Nested
 import Data.Traversable
 import Unsafe.Coerce
 import Data.Generic
+import Data.Array as A
+import Data.List as L
 import Data.Map as M
 
 undefined :: forall a. a
@@ -82,6 +82,43 @@ cost (RCoerce _) = Just 1
 cost RNoMatch = Nothing
 cost (RTFun args result) = lift2 (+) (map (foldr (+) 0) (sequence (map cost args))) (cost result)
 
+newtype RComponent = RComponent
+  { external :: Array RType
+  , internal :: Array (Array RType)
+  }
+
+derive instance genericRComponent :: Generic RComponent
+
+instance showRComponent :: Show RComponent where
+  show = gShow
+
+instance monoidRComponent :: Monoid RComponent where
+  mempty = RComponent { external: [], internal: [] }
+
+instance semigroupRComponent :: Semigroup RComponent where
+  append (RComponent cmp1) (RComponent cmp2) = RComponent
+    { external: cmp1.external <> cmp2.external
+    , internal: cmp1.internal <> cmp2.internal
+    }
+
+
+extractComponents :: RType -> RComponent
+extractComponents t = extractComponents' t mempty
+  where
+    extractComponents' :: RType -> RComponent -> RComponent
+    extractComponents' (RConst (Const "component")) cmp' = cmp'
+    extractComponents' (RFun args (RConst (Const "component"))) cmp'
+      = foldr extractArg cmp' args
+      where
+        extractArg :: RType -> RComponent -> RComponent
+        extractArg t@(RConst _) cmp = cmp <> RComponent { external: [t], internal: [] }
+        extractArg t@(RVar   _) cmp = cmp <> RComponent { external: [t], internal: [] }
+        extractArg t@(RApp _ _) cmp = cmp <> RComponent { external: [t], internal: [] }
+        extractArg t@(RFun args (RConst (Const "component"))) cmp
+                                    = cmp <> RComponent { external: [], internal: [A.fromFoldable args] }
+        extractArg t@(RFun _ _) cmp = cmp <> RComponent { external: [t], internal: [] }
+    extractComponents' _ _ = undefined
+
 --------------------------------------------------------------------------------
 
 a :: RType
@@ -115,5 +152,5 @@ sidebarTypes =
   , array location
   ]
 
-componentType :: RType /\ RType
-componentType = array a /\ fun [ array a, fun [a] component ] component
+componentType :: RType
+componentType = fun [ array a, fun [a] component ] component
