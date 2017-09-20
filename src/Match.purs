@@ -66,7 +66,6 @@ data RTransform = REqual
                 | RMap Const Const
                 | RCoerce RCoercion
                 | RNoMatch
-                | RTFun (List RTransform) RTransform
 
 derive instance genericRTransform :: Generic RTransform
 
@@ -76,14 +75,6 @@ instance showRTransform :: Show RTransform
 type RCost = Int
 
 type Ctx = M.Map Var Const
-
-cost :: RTransform -> Maybe RCost
-cost REqual = Just 0
-cost (RSpecify _ _) = Just 0
-cost (RMap _ _) = Just 1
-cost (RCoerce _) = Just 1
-cost RNoMatch = Nothing
-cost (RTFun args result) = lift2 (+) (map (foldr (+) 0) (sequence (map cost args))) (cost result)
 
 type Index = Int
 
@@ -124,8 +115,21 @@ extractComponents t = extractComponents' t mempty
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
     extractComponents' _ _ = undefined
 
-unifyType :: RType -> RType -> RType
-unifyType = undefined
+unifyType :: Const -> RType -> RTransform
+unifyType t@(Const c) (RConst t'@(Const c'))
+  | c == c'   = REqual
+  | otherwise = RMap t t'
+unifyType t@(Const _) (RVar v) = RSpecify v t
+unifyType _ _ = RNoMatch
+
+specifyType :: RTransform -> RType -> RType
+specifyType (RSpecify v c) t@(RConst _) = t
+specifyType (RSpecify v c) t@(RVar v')
+  | v == v'   = RConst c
+  | otherwise = t
+specifyType tr@(RSpecify v c) (RApp f x)  = RApp (specifyType tr f) (specifyType tr x)
+specifyType tr@(RSpecify v c) (RFun as r) = RFun (map (specifyType tr) as) (specifyType tr r)
+specifyType _ t = t
 
 --------------------------------------------------------------------------------
 
