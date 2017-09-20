@@ -346,9 +346,9 @@ list :: forall eff. Component eff AppState
 list =
   div
     [ ]
-    [ svg [ shapeRendering "geometricPrecision", width "500px", height "500px" ]
+    [ svg [ shapeRendering "geometricPrecision", width "1000px", height "1000px" ]
       [ -- rcomponent' _1 testRComponent
-      rcomponent testComponent (100.0 × 100.0 × 200.0 × 200.0)
+      rcomponent testComponent (300.0 × 100.0 × 200.0 × 200.0)
       ]
     -- , state $ text <<< show
     -- , div [ onClick $ const ajax ] [ text "+" ]
@@ -377,14 +377,15 @@ line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("
 rcomponent :: forall eff st. RComponent -> Rect -> Component eff st
 rcomponent (RComponent rcmp) (bx × by × bw × bh) = g [] $
   [ rect
-    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 5.0), ry (px 5.0), stroke "#d90e59", strokeWidth "3" ]
+    [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 5.0), ry (px 5.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
-  <> map (point (bx - 20.0 × by)) (0.. (length rcmp.external - 1))
+  <> map (point (bx - 30.0 × by)) (0.. (length rcmp.external - 1))
+  <> map (point (bx + 30.0 × by + 30.0)) (0.. (length rcmp.internal - 1))
   where
     point :: Vec -> Index -> Component eff st
     point (x × y) index = circle
-      [ cx (px x), cy (px $ y - I.toNumber index * 15.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+      [ cx (px $ x - 7.0), cy (px $ y + 7.0 + I.toNumber index * 30.0), r (px 7.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
       []
 
   -- <> map arg (zip (range 0 (length rcmp.args)) (rcmp.args))
