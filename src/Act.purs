@@ -13,6 +13,7 @@ import Data.Exists
 import Data.Generic.Rep
 import Data.Traversable
 import Data.Lens
+import Data.List as L
 import Data.Maybe
 import Data.Map
 import Data.Lens.Index
@@ -415,16 +416,37 @@ type Layout = Rect
 layoutUIComponent' :: Rect -> RComponent' RType Unit -> RComponent' Conn Layout
 layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = RComponent' { rtype: rtype, utype: map f utype }
   where
-    f :: Either RType (Array (Either RType (RComponent' RType Unit)  × Unit))
-      -> Either Conn  (Array (Either Conn  (RComponent' Conn Layout) × Layout))
+    f :: Either RType (L.List (Either RType (RComponent' RType Unit  × Unit)))
+      -> Either Conn  (L.List (Either Conn  (RComponent' Conn Layout × Layout)))
     f t = case t of
       Left  t -> Left (t × undefined × "")
       Right t -> undefined
 
-data Path = Done | Go Int
+data Path = Done | Go Int Path
 
-snap :: RComponent' Conn Layout -> Vec -> Path
-snap (RComponent' rmp) (vx × vy) = undefined
+inside :: Vec -> Rect -> Boolean
+inside = undefined
+
+inradius :: Number -> Vec -> Vec -> Boolean
+inradius = undefined
+
+snap :: RComponent' Conn Layout -> Vec -> Maybe Path
+snap (RComponent' rcmp) v = go 0 rcmp.utype
+  where
+    go index (L.Cons t ts) = case t of
+      Left _    -> go (index + 1) ts
+      Right int -> goI 0 int
+    go index L.Nil = Nothing
+
+    goI :: Int -> L.List (Either Conn ((RComponent' Conn Layout) × Layout)) -> Maybe Path
+    goI index (L.Cons t ts) = case t of
+      Left (_ × v' × _)
+        | inradius 10.0 v v' -> Just $ Go index Done
+        | otherwise          -> goI (index + 1) ts
+      Right (cmp × layout)
+        | inside v layout    -> map (Go index) $ snap cmp v
+        | otherwise          -> goI (index + 1) ts
+    goI _ L.Nil = Nothing
 
 layoutUIComponent :: Rect -> RComponent -> UIComponent
 layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
