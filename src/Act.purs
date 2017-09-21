@@ -7,6 +7,7 @@ import Control.Monad.Eff.Console
 import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
+import Data.Either
 import Data.Functor
 import Data.Exists
 import Data.Generic.Rep
@@ -413,9 +414,9 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
   { component: cmp
   , bounds   : bounds
   , external :
-    { conns: map (conn ((bx - gap) × by)) (indexedRange rcmp.external)
+    { conns: map (connE ((bx - gap) × by)) (indexedRange rcmp.external)
     }
-  , internal : [] -- map internal (indexedRange rcmp.internal)
+  , internal : map internal (indexedRange rcmp.internal)
   }
   where
     ccount = I.toNumber (length rcmp.internal)
@@ -424,15 +425,20 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
     cw     = (bw - (gap * (ccount + 1.0))) / ccount
     cy     = by + gap
 
-    conn :: Vec -> Int × RType × RArgIndex -> Label × Vec × RArgIndex
-    conn (ox × oy) (index × t × aindex) = show t × (ox × (oy + I.toNumber index * gap)) × aindex
+    connE :: Vec -> Int × RType × RArgIndex -> Label × Vec × RArgIndex
+    connE (ox × oy) (index × t × aindex) = show t × (ox × (oy + I.toNumber index * gap)) × aindex
 
-    internal :: Int × Array (RType × RArgIndex) × RArgIndex -> UIInternal
+    connI :: Vec -> Int × Either RType RComponent × RArgIndex -> Label × Vec × RArgIndex
+    connI (ox × oy) (index × t × aindex) = case t of
+      Left  t -> show t × (ox × (oy + I.toNumber index * gap)) × aindex
+      Right t -> "HOC" × (ox × (oy + I.toNumber index * gap)) × aindex
+
+    internal :: Int × Array (Either RType RComponent × RArgIndex) × RArgIndex -> UIInternal
     internal (index × args × aindex) =
       { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
       , inner    : (cx + gap * 5.0) × (by + gap * 4.0) × (cw - gap * 6.0) × (bh - 6.0 * gap)
       , arg      : aindex
-      , conns    : map (conn ((cx + gap) × (cy + gap))) (indexedRange args)
+      , conns    : map (connI ((cx + gap) × (cy + gap))) (indexedRange args)
       , component: Nothing
       }
       where
