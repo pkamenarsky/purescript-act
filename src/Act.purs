@@ -350,7 +350,7 @@ main = void (elm' >>= RD.render ui)
 --------------------------------------------------------------------------------
 
 uicmp :: UIComponent
-uicmp = UIComponent c1'
+uicmp = UIComponent c1
   where
    UIComponent c1 = layoutUIComponent (300.5 × 100.5 × 800.0 × 400.0) testComponent
    c2 = case c1.internal A.!! 0 of

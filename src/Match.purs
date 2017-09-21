@@ -52,7 +52,7 @@ instance showRType :: Show RType where
   show (RVar (Var a))     = a
   show (RConst (Const a)) = a
   show (RRecord m)        = "{" <> joinWith "," (map (\(f × t) -> f <> ": " <> t) m) <> "}"
-  show (RApp a b)         = show a <> " " <> show b
+  show (RApp a b)         = show a <> "<" <> show b <> ">"
   show (RFun as r)        = "(" <> joinWith " -> " (A.fromFoldable (map show as <> (Cons (show r) Nil))) <> ")"
 
 instance eqRType :: Eq RType where
@@ -126,8 +126,8 @@ extractComponents :: RType -> Either RType RComponent
 extractComponents t = extractComponents' t mempty
   where
     extractComponents' :: RType -> RComponent -> Either RType RComponent
-    extractComponents' (RConst (Const "component")) cmp' = Right cmp'
-    extractComponents' (RFun args (RConst (Const "component"))) cmp'
+    extractComponents' (RConst (Const "Component")) cmp' = Right cmp'
+    extractComponents' (RFun args (RConst (Const "Component"))) cmp'
       = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
       where
         extractArg :: RType × RArgIndex -> RComponent -> RComponent
@@ -135,7 +135,7 @@ extractComponents t = extractComponents' t mempty
         extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
-        extractArg (t@(RFun args (RConst (Const "component"))) × i) cmp
+        extractArg (t@(RFun args (RConst (Const "Component"))) × i) cmp
           = cmp <> RComponent
             { external: []
             , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
@@ -168,25 +168,28 @@ specifyType _ t = t
 --------------------------------------------------------------------------------
 
 a :: RType
-a = RVar (Var "a")
+a = RVar (Var "A")
 
 b :: RType
-b = RVar (Var "b")
+b = RVar (Var "B")
 
 person :: RType
-person = RConst (Const "person")
+person = RConst (Const "Person")
 
 address :: RType
-address = RConst (Const "address")
+address = RConst (Const "Address")
 
 location :: RType
-location = RConst (Const "location")
+location = RConst (Const "Location")
 
 component :: RType
-component = RConst (Const "component")
+component = RConst (Const "Component")
 
 array :: RType -> RType
-array t = RApp (RConst (Const "array")) t
+array t = RApp (RConst (Const "Array")) t
+
+navigationStack :: RType
+navigationStack = RConst (Const "NavigationStack")
 
 fun :: Array RType -> RType -> RType
 fun args t = RFun (L.fromFoldable args) t
@@ -201,11 +204,22 @@ sidebarTypes =
   , array location
   ]
 
-navigationStack :: RType
-navigationStack = RConst (Const "navigationStack")
-
 componentType :: RType
-componentType = fun [ navigationStack, array a, fun [a] component, fun [person, fun [location, a] component] component ] component
+componentType = fun
+  [ navigationStack
+  , array a
+  , fun [a] component
+  , fun
+    [ person
+    , fun
+      [ location
+      , a
+      ]
+      component
+    ]
+    component
+  ]
+  component
 
 componentType2 :: RType
 componentType2 = fun [ location ] component
