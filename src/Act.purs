@@ -409,10 +409,22 @@ newtype UIComponent = UIComponent
   , internal  :: Array UIInternal
   }
 
+type Conn   = RType × Vec × Label
+type Layout = Rect
+
+layoutUIComponent' :: Rect -> RComponent' RType Unit -> RComponent' Conn Layout
+layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = RComponent' { rtype: rtype, utype: map f utype }
+  where
+    f :: Either RType (Array (Either RType (RComponent' RType Unit)  × Unit))
+      -> Either Conn  (Array (Either Conn  (RComponent' Conn Layout) × Layout))
+    f t = case t of
+      Left  t -> Left (t × undefined × "")
+      Right t -> undefined
+
 data Path = Done | Go Int
 
-snap :: Vec -> UIComponent -> Path
-snap = undefined
+snap :: RComponent' Conn Layout -> Vec -> Path
+snap (RComponent' rmp) (vx × vy) = undefined
 
 layoutUIComponent :: Rect -> RComponent -> UIComponent
 layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent

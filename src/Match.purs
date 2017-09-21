@@ -96,11 +96,11 @@ newtype RComponent = RComponent
   }
 
 type External conn     = conn
-type Internal conn ext = Array (Either conn (RComponent' conn ext) × ext)
+type Internal conn int = Array (Either conn (RComponent' conn int) × int)
 
-newtype RComponent' conn ext = RComponent'
+newtype RComponent' conn int = RComponent'
   { rtype    :: RType
-  , utype    :: Array (Either (External conn) (Internal conn ext))
+  , utype    :: Array (Either (External conn) (Internal conn int))
   }
 
 extractComponents'' :: RType -> Either RType (RComponent' RType Unit)
