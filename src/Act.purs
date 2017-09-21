@@ -415,7 +415,7 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
   , external :
     { conns: map (conn ((bx - gap) × by)) (indexedRange rcmp.external)
     }
-  , internal : map internal (indexedRange rcmp.internal)
+  , internal : [] -- map internal (indexedRange rcmp.internal)
   }
   where
     ccount = I.toNumber (length rcmp.internal)

@@ -3,6 +3,7 @@ module Match where
 import Control.Apply
 import Prelude
 import Data.Array
+import Data.Either
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -85,15 +86,31 @@ derive instance genericRArgIndex :: Generic RArgIndex
 argRange :: Int -> Array RArgIndex
 argRange x = map RArgIndex $ A.range 0 (x - 1)
 
+zipArgRange :: forall a. Array a -> Array (a × RArgIndex)
+zipArgRange a = A.zip a (argRange $ A.length a)
+
 newtype RComponent = RComponent
   { external :: Array (RType × RArgIndex)
-  , internal :: Array (Array (RType × RArgIndex) × RArgIndex)
+  , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
-derive instance genericRComponent :: Generic RComponent
-
 instance showRComponent :: Show RComponent where
-  show = gShow
+  show = show' 0
+    where
+      show' :: Int -> RComponent -> String
+      show' indent (RComponent rcmp) = joinWith "\n" $
+        [ prefix <> "<external>: "
+        , joinWith "\n" $ map (\(t × RArgIndex a) -> prefix' <> show a <> " × " <> show t) rcmp.external
+        , joinWith "\n" $ flip map rcmp.internal \(args × RArgIndex a) -> joinWith "\n" $
+           [ prefix <> "<" <> show a <> " × internal>:"
+           , joinWith "\n" $ flip map args \(x × RArgIndex a') -> case x of
+               Left  t -> prefix' <> show a' <> " × " <> show t
+               Right c -> prefix' <> show a' <> " × <component>:\n" <> show' (indent + 4) c
+           ]
+        ]
+        where
+          prefix  = fromCharArray $ A.replicate indent ' '
+          prefix' = fromCharArray $ A.replicate (indent + 2) ' '
 
 instance monoidRComponent :: Monoid RComponent where
   mempty = RComponent { external: [], internal: [] }
@@ -105,13 +122,13 @@ instance semigroupRComponent :: Semigroup RComponent where
     }
 
 -- TODO: nested components
-extractComponents :: RType -> RComponent
+extractComponents :: RType -> Either RType RComponent
 extractComponents t = extractComponents' t mempty
   where
-    extractComponents' :: RType -> RComponent -> RComponent
-    extractComponents' (RConst (Const "component")) cmp' = cmp'
+    extractComponents' :: RType -> RComponent -> Either RType RComponent
+    extractComponents' (RConst (Const "component")) cmp' = Right cmp'
     extractComponents' (RFun args (RConst (Const "component"))) cmp'
-      = foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
+      = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
       where
         extractArg :: RType × RArgIndex -> RComponent -> RComponent
         extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
@@ -119,9 +136,12 @@ extractComponents t = extractComponents' t mempty
         extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
         extractArg (t@(RFun args (RConst (Const "component"))) × i) cmp
-                                     = cmp <> RComponent { external: [], internal: [(A.zip (A.fromFoldable args) (argRange $ L.length args)) × i] }
+          = cmp <> RComponent
+            { external: []
+            , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
+            }
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
-    extractComponents' _ _ = undefined
+    extractComponents' t _ = Left t
 
 unifyType :: RType -> RType -> RTransform
 unifyType (RConst t@(Const c)) (RConst t'@(Const c'))
@@ -185,16 +205,16 @@ navigationStack :: RType
 navigationStack = RConst (Const "navigationStack")
 
 componentType :: RType
-componentType = fun [ navigationStack, array a, fun [a] component, fun [location] component ] component
+componentType = fun [ navigationStack, array a, fun [a] component, fun [person, fun [location, a] component] component ] component
 
 componentType2 :: RType
 componentType2 = fun [ location ] component
 
 testComponent :: RComponent
-testComponent = extractComponents componentType
+testComponent = either undefined id (extractComponents componentType)
 
 testComponent2 :: RComponent
-testComponent2 = extractComponents componentType2
+testComponent2 = either undefined id (extractComponents componentType2)
 
 testUnify :: RTransform
 testUnify = unifyType (array person) (array a)
