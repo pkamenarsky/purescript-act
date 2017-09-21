@@ -450,6 +450,10 @@ snap (RComponent' rcmp) v = go 0 rcmp.utype
         | otherwise          -> goI (index + 1) ts
     goI _ L.Nil = Nothing
 
+uicomponent' :: forall eff st. RComponent' Conn Layout -> Component eff st
+uicomponent' (RComponent' rcmp) = g [] $
+ []
+
 layoutUIComponent :: Rect -> RComponent -> UIComponent
 layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
   { component: cmp
