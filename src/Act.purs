@@ -409,6 +409,11 @@ newtype UIComponent = UIComponent
   , internal  :: Array UIInternal
   }
 
+data Path = Done | Go Int
+
+snap :: Vec -> UIComponent -> Path
+snap = undefined
+
 layoutUIComponent :: Rect -> RComponent -> UIComponent
 layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
   { component: cmp

@@ -95,6 +95,37 @@ newtype RComponent = RComponent
   , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
+type Internal = RType
+type External = Array (Either RType RComponent)
+
+newtype RComponent' = RComponent'
+  { rtype    :: RType
+  , utype    :: Array (Either Internal External)
+  }
+
+extractComponents' :: RType -> Either RType RComponent
+extractComponents' t = extractComponents'' t $ RComponent { rtype: t, external: [], internal: [] }
+  where
+    extractComponents'' :: RType -> RComponent -> Either RType RComponent
+    extractComponents'' (RConst (Const "Component")) cmp' = Right cmp'
+    extractComponents'' (RFun args (RConst (Const "Component"))) cmp'
+      = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
+      where
+        extractArg :: RType × RArgIndex -> RComponent -> RComponent
+        extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RFun args (RConst (Const "Component"))) × i) cmp
+          = cmp <> RComponent
+            { rtype   : undefined
+            , external: []
+            , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
+            }
+        extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+    extractComponents'' t _ = Left t
+
+
 instance showRComponent :: Show RComponent where
   show = show' 0
     where
@@ -120,7 +151,6 @@ instance semigroupRComponent :: Semigroup RComponent where
     , internal: cmp1.internal <> cmp2.internal
     }
 
--- TODO: nested components
 extractComponents :: RType -> Either RType RComponent
 extractComponents t = extractComponents' t $ RComponent { rtype: t, external: [], internal: [] }
   where
