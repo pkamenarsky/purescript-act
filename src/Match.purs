@@ -95,13 +95,16 @@ newtype RComponent = RComponent
   , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
-type Internal = RType
-type External = Array (Either RType RComponent)
+type External conn     = conn
+type Internal conn ext = Array (Either conn (RComponent' conn ext) × ext)
 
-newtype RComponent' = RComponent'
+newtype RComponent' conn ext = RComponent'
   { rtype    :: RType
-  , utype    :: Array (Either Internal External)
+  , utype    :: Array (Either (External conn) (Internal conn ext))
   }
+
+extractComponents'' :: RType -> Either RType (RComponent' RType Unit)
+extractComponents'' = undefined
 
 extractComponents' :: RType -> Either RType RComponent
 extractComponents' t = extractComponents'' t $ RComponent { rtype: t, external: [], internal: [] }
