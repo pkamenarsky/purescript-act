@@ -96,11 +96,11 @@ newtype RComponent = RComponent
   }
 
 type External conn     = conn
-type Internal conn int = List (Either conn (RComponent' conn int × int))
+type Internal conn int = List (Either conn (RComponent' conn int × conn))
 
 newtype RComponent' conn int = RComponent'
   { rtype    :: RType
-  , utype    :: List (Either (External conn) (Internal conn int))
+  , utype    :: List (Either (External conn) (Internal conn int × int))
   }
 
 extractComponents'' :: RType -> Either RType (RComponent' RType Unit)

@@ -416,8 +416,8 @@ type Layout = Rect
 layoutUIComponent' :: Rect -> RComponent' RType Unit -> RComponent' Conn Layout
 layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = RComponent' { rtype: rtype, utype: map f utype }
   where
-    f :: Either RType (L.List (Either RType (RComponent' RType Unit  × Unit)))
-      -> Either Conn  (L.List (Either Conn  (RComponent' Conn Layout × Layout)))
+    f :: Either RType (L.List (Either RType (RComponent' RType Unit × RType))  × Unit)
+      -> Either Conn  (L.List (Either Conn  (RComponent' Conn Layout × Conn)) × Layout)
     f t = case t of
       Left  t -> Left (t × undefined × "")
       Right t -> undefined
@@ -437,16 +437,18 @@ snap (RComponent' rcmp) v = go 0 rcmp.utype
       Left (_ × v' × _)
         | inradius 10.0 v v' -> Just $ Go index Done
         | otherwise          -> go (index + 1) ts
-      Right int              -> goI 0 int
+      Right (int × layout)
+        | inside v layout    -> goI 0 int
+        | otherwise          -> go (index + 1) ts
     go index L.Nil = Nothing
 
-    goI :: Int -> L.List (Either Conn ((RComponent' Conn Layout) × Layout)) -> Maybe Path
+    goI :: Int -> L.List (Either Conn (RComponent' Conn Layout × Conn)) -> Maybe Path
     goI index (L.Cons t ts) = case t of
       Left (_ × v' × _)
         | inradius 10.0 v v' -> Just $ Go index Done
         | otherwise          -> goI (index + 1) ts
-      Right (cmp × layout)
-        | inside v layout    -> map (Go index) $ snap cmp v
+      Right (cmp × (_ × v' × _))
+        | inradius 10.0 v v' -> map (Go index) $ snap cmp v
         | otherwise          -> goI (index + 1) ts
     goI _ L.Nil = Nothing
 
