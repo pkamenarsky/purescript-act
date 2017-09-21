@@ -103,6 +103,26 @@ newtype RComponent' conn int = RComponent'
   , utype    :: List (Either (External conn) (Internal conn int × int))
   }
 
+data Vec
+data Rect
+
+type Internal' conn int = List (Either (RType × Vec) (RComponent' conn int × Rect))
+
+newtype RComponent'' = RComponent''
+  { rtype    :: RType
+  , utype    :: List (Either RType (List (Either RType RComponent'')))
+  }
+
+type ExConnLayout = RType × Vec × String
+type InConnLayout = RType × Vec × String
+type InCompLayout = RComponent''' × Rect
+type InnerLayout  = Rect × Rect
+
+newtype RComponent''' = RComponent'''
+  { rtype    :: RType
+  , utype    :: List (Either ExConnLayout (List (Either InConnLayout InCompLayout) × InnerLayout))
+  }
+
 extractComponents'' :: RType -> Either RType (RComponent' RType Unit)
 extractComponents'' = undefined
 
