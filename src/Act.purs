@@ -434,8 +434,10 @@ snap :: RComponent' Conn Layout -> Vec -> Maybe Path
 snap (RComponent' rcmp) v = go 0 rcmp.utype
   where
     go index (L.Cons t ts) = case t of
-      Left _    -> go (index + 1) ts
-      Right int -> goI 0 int
+      Left (_ × v' × _)
+        | inradius 10.0 v v' -> Just $ Go index Done
+        | otherwise          -> go (index + 1) ts
+      Right int              -> goI 0 int
     go index L.Nil = Nothing
 
     goI :: Int -> L.List (Either Conn ((RComponent' Conn Layout) × Layout)) -> Maybe Path
