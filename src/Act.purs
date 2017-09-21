@@ -451,7 +451,7 @@ uicomponent (UIComponent uicmp) = g [] $
     [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
-  <> map (conn "end") uicmp.external.conns
+  <> map (conn "end" $ Just uicmp.bounds) uicmp.external.conns
   <> map container uicmp.internal
   where
     bx × by × bw × bh = uicmp.bounds
@@ -469,18 +469,21 @@ uicomponent (UIComponent uicmp) = g [] $
                [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
                []
              ]
-      <> map (conn "start") uiint.conns
+      <> map (conn "start" Nothing) uiint.conns
       where
         ox × oy × ow × oh = uiint.outer
         ix × iy × iw × ih = uiint.inner
 
-    conn :: String -> Label × Vec × RArgIndex -> Component eff st
-    conn align (name × (x × y) × _) = g []
+    conn :: String -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff st
+    conn align bounds (name × (x × y) × _) = g [] $
       [ circle
-        [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 2.0) ]
+        [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
         []
       , label (x' + offset align × y' + 4.0) align name
       ]
+      <> case bounds of
+           Just _  -> [ line (x' + 5.0 × y') (x' + 36.0 × y') ]
+           Nothing -> []
       where
         x' = x - 7.0
         y' = y + 7.0
