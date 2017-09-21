@@ -90,7 +90,8 @@ zipArgRange :: forall a. Array a -> Array (a × RArgIndex)
 zipArgRange a = A.zip a (argRange $ A.length a)
 
 newtype RComponent = RComponent
-  { external :: Array (RType × RArgIndex)
+  { rtype    :: RType
+  , external :: Array (RType × RArgIndex)
   , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
@@ -112,18 +113,16 @@ instance showRComponent :: Show RComponent where
           prefix  = fromCharArray $ A.replicate indent ' '
           prefix' = fromCharArray $ A.replicate (indent + 2) ' '
 
-instance monoidRComponent :: Monoid RComponent where
-  mempty = RComponent { external: [], internal: [] }
-
 instance semigroupRComponent :: Semigroup RComponent where
   append (RComponent cmp1) (RComponent cmp2) = RComponent
-    { external: cmp1.external <> cmp2.external
+    { rtype   : cmp1.rtype
+    , external: cmp1.external <> cmp2.external
     , internal: cmp1.internal <> cmp2.internal
     }
 
 -- TODO: nested components
 extractComponents :: RType -> Either RType RComponent
-extractComponents t = extractComponents' t mempty
+extractComponents t = extractComponents' t $ RComponent { rtype: t, external: [], internal: [] }
   where
     extractComponents' :: RType -> RComponent -> Either RType RComponent
     extractComponents' (RConst (Const "Component")) cmp' = Right cmp'
@@ -131,16 +130,17 @@ extractComponents t = extractComponents' t mempty
       = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
       where
         extractArg :: RType × RArgIndex -> RComponent -> RComponent
-        extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
-        extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
-        extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { external: [t × i], internal: [] }
-        extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
+        extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
+        extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
         extractArg (t@(RFun args (RConst (Const "Component"))) × i) cmp
           = cmp <> RComponent
-            { external: []
+            { rtype   : undefined
+            , external: []
             , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
             }
-        extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { external: [t × i], internal: [] }
+        extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
     extractComponents' t _ = Left t
 
 unifyType :: RType -> RType -> RTransform
@@ -222,7 +222,7 @@ componentType = fun
   component
 
 componentType2 :: RType
-componentType2 = fun [ location ] component
+componentType2 = fun [ location, fun [a] component ] component
 
 testComponent :: RComponent
 testComponent = either undefined id (extractComponents componentType)
