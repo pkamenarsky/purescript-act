@@ -13,7 +13,6 @@ import Data.Exists
 import Data.Generic.Rep
 import Data.Traversable
 import Data.Lens
-import Data.List as L
 import Data.Maybe
 import Data.Map
 import Data.Lens.Index
@@ -26,6 +25,7 @@ import DOM as D
 import DOM.Node.Types as D
 import Data.Array as A
 import Data.Int as I
+import Data.List as L
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
@@ -410,16 +410,41 @@ newtype UIComponent = UIComponent
   , internal  :: Array UIInternal
   }
 
-type Conn   = RType × Vec × Label
-type Layout = Rect
+type ExConnLayout =
+  { rtype :: RType
+  , pos   :: Vec
+  , label :: String
+  }
 
-layoutUIComponent' :: Rect -> RComponent' RType Unit -> RComponent' Conn Layout
-layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = RComponent' { rtype: rtype, utype: map f utype }
+type InConnLayout =
+  { rtype :: RType
+  , pos   :: Vec
+  , label :: String
+  }
+
+type InCmpLayout =
+  { rcomponent :: RComponent'
+  , bounds     :: Rect
+  }
+
+type InnerLayout =
+  { inner :: Rect
+  , outer :: Rect
+  , child :: Maybe UIComponent'
+  }
+
+newtype UIComponent' = UIComponent'
+  { rtype    :: RType
+  , utype    :: L.List (Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout))
+  }
+
+layoutUIComponent' :: Rect -> RComponent' -> UIComponent'
+layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = UIComponent' { rtype: rtype, utype: map f utype }
   where
-    f :: Either RType (L.List (Either RType (RComponent' RType Unit × RType))  × Unit)
-      -> Either Conn  (L.List (Either Conn  (RComponent' Conn Layout × Conn)) × Layout)
+    f :: Either RType (L.List (Either RType RComponent'))
+      -> Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout)
     f t = case t of
-      Left  t -> Left (t × undefined × "")
+      Left  t -> undefined
       Right t -> undefined
 
 data Path = Done | Go Int Path
@@ -430,30 +455,32 @@ inside = undefined
 inradius :: Number -> Vec -> Vec -> Boolean
 inradius = undefined
 
-snap :: RComponent' Conn Layout -> Vec -> Maybe Path
-snap (RComponent' rcmp) v = go 0 rcmp.utype
+snap :: UIComponent' -> Vec -> Maybe Path
+snap (UIComponent' rcmp) v = go 0 rcmp.utype
   where
     go index (L.Cons t ts) = case t of
-      Left (_ × v' × _)
-        | inradius 10.0 v v' -> Just $ Go index Done
-        | otherwise          -> go (index + 1) ts
+      Left excl
+        | inradius 10.0 v excl.pos -> Just $ Go index Done
+        | otherwise                -> go (index + 1) ts
       Right (int × layout)
-        | inside v layout    -> goI 0 int
-        | otherwise          -> go (index + 1) ts
+        | inside v layout.inner
+        , Just child' <- layout.child -> map (Go index) $ snap child' v
+        | inside v layout.outer       -> goI 0 int
+        | otherwise                   -> go (index + 1) ts
     go index L.Nil = Nothing
 
-    goI :: Int -> L.List (Either Conn (RComponent' Conn Layout × Conn)) -> Maybe Path
+    goI :: Int -> L.List (Either InConnLayout InCmpLayout) -> Maybe Path
     goI index (L.Cons t ts) = case t of
-      Left (_ × v' × _)
-        | inradius 10.0 v v' -> Just $ Go index Done
-        | otherwise          -> goI (index + 1) ts
-      Right (cmp × (_ × v' × _))
-        | inradius 10.0 v v' -> map (Go index) $ snap cmp v
-        | otherwise          -> goI (index + 1) ts
+      Left icl
+        | inradius 10.0 v icl.pos -> Just $ Go index Done
+        | otherwise               -> goI (index + 1) ts
+      Right icmpl
+        | inside v icmpl.bounds   -> Just $ Go index Done
+        | otherwise               -> goI (index + 1) ts
     goI _ L.Nil = Nothing
 
-uicomponent' :: forall eff st. RComponent' Conn Layout -> Component eff st
-uicomponent' (RComponent' rcmp) = g [] $
+uicomponent' :: forall eff st. UIComponent' -> Component eff st
+uicomponent' (UIComponent' rcmp) = g [] $
  []
 
 layoutUIComponent :: Rect -> RComponent -> UIComponent

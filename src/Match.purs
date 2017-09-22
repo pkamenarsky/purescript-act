@@ -95,35 +95,12 @@ newtype RComponent = RComponent
   , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
-type External conn     = conn
-type Internal conn int = List (Either conn (RComponent' conn int × conn))
-
-newtype RComponent' conn int = RComponent'
+newtype RComponent' = RComponent'
   { rtype    :: RType
-  , utype    :: List (Either (External conn) (Internal conn int × int))
+  , utype    :: List (Either RType (List (Either RType RComponent')))
   }
 
-data Vec
-data Rect
-
-type Internal' conn int = List (Either (RType × Vec) (RComponent' conn int × Rect))
-
-newtype RComponent'' = RComponent''
-  { rtype    :: RType
-  , utype    :: List (Either RType (List (Either RType RComponent'')))
-  }
-
-type ExConnLayout = RType × Vec × String
-type InConnLayout = RType × Vec × String
-type InCompLayout = RComponent''' × Rect
-type InnerLayout  = Rect × Rect
-
-newtype RComponent''' = RComponent'''
-  { rtype    :: RType
-  , utype    :: List (Either ExConnLayout (List (Either InConnLayout InCompLayout) × InnerLayout))
-  }
-
-extractComponents'' :: RType -> Either RType (RComponent' RType Unit)
+extractComponents'' :: RType -> Either RType RComponent'
 extractComponents'' = undefined
 
 extractComponents' :: RType -> Either RType RComponent
