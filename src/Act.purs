@@ -82,7 +82,7 @@ derefStatic (StaticPtr ptr) = derefStatic_ ptr
 data MouseDragState = DragStart R.MouseEvent | DragMove R.MouseEvent | DragEnd R.MouseEvent
 
 instance shoeMouseDragState :: Show MouseDragState where
-  show (DragStart _) = "DragStart"
+  show (DragStart e) = "DragStart: " <> show e.pageX <> ", " <> show e.pageY
   show (DragMove _) = "DragMove"
   show (DragEnd _) = "DragEnd"
 
@@ -370,15 +370,17 @@ uicmp = UIComponent c1'
 
 list :: forall eff. Component eff AppState
 list = div
- [ onMouseDown \e -> modify (f e) ]
- [ svg [ shapeRendering "geometricPrecision", width "2000px", height "1000px" ]
+ []
+ [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    [ uicomponent uicmp
    ]
  , state \st -> text st.debug 
  ]
  where
+   -- f :: R.MouseEvent -> AppState -> AppState
+   f :: { pageX :: Number } -> AppState -> AppState
    f e st = st
-     { debug = "Debug: " <> show e.pageX <> ", " <> show e.pageY <> show (snap uicmp (e.pageX × e.pageY))
+     { debug = "Debug: " <> show (e.pageX + e.pageX) -- <> ", " <> show e.pageY -- <> show (snap uicmp (e.pageX × e.pageY))
      }
 
 --------------------------------------------------------------------------------
@@ -569,8 +571,8 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
         index' = I.toNumber index
         cx     = bx + (index' + 1.0) * gap + index' * cw
 
-uicomponent :: forall eff st. UIComponent -> Component eff st
-uicomponent (UIComponent uicmp) = g [] $
+uicomponent :: forall eff. UIComponent -> Component eff AppState
+uicomponent (UIComponent uicmp) = g [ onMouseDrag \e -> modify \st -> st { debug = show e }] $
   [ rect
     [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
@@ -580,7 +582,7 @@ uicomponent (UIComponent uicmp) = g [] $
   where
     bx × by × bw × bh = uicmp.bounds
 
-    container :: UIInternal -> Component eff st
+    container :: UIInternal -> Component eff AppState
     container uiint = g [] $
       [ rect
         [ x (px ox), y (px oy), width (px ow), height (px oh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
@@ -598,7 +600,7 @@ uicomponent (UIComponent uicmp) = g [] $
         ox × oy × ow × oh = uiint.outer
         ix × iy × iw × ih = uiint.inner
 
-    conn :: String -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff st
+    conn :: String -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff AppState
     conn align bounds (name × (x × y) × _) = g [] $
       [ circle
         [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
