@@ -46,6 +46,8 @@ foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
 
 foreign import dragStart :: forall eff a. (Int -> R.Event -> Eff eff a) -> Eff eff Unit
 
+foreign import persistEvent :: forall eff a. R.Event -> Eff eff Unit
+
 traceAnyM :: forall m a. Monad m => a -> m a
 traceAnyM s = traceAny s \_ -> pure s
 
@@ -91,6 +93,7 @@ data EffectF eff st next =
   | ModifyRemotely (StaticPtr (Json -> st -> (Tuple st Json))) Json (Json -> next)
   | Effect Json (Json -> Eff eff Json) (Json -> next)
   | Log String next
+  | PersistEvent R.Event next
   | PreventDefault R.Event next
   | StopPropagation R.Event next
   | OnDragStart (MouseDragState -> Effect eff st next)
@@ -103,6 +106,7 @@ mapEffectF :: forall eff st stt next. Lens' st stt -> EffectF eff stt next -> Ef
 mapEffectF lns (ModifyRemotely a f next) = undefined
 mapEffectF lns (Modify f next) = Modify (over lns f) next
 mapEffectF lns (Log str next) = Log str next
+mapEffectF lns (PersistEvent e next) = PersistEvent e next
 mapEffectF lns (PreventDefault e next) = PreventDefault e next
 mapEffectF lns (StopPropagation e next) = StopPropagation e next
 mapEffectF lns (OnDragStart next) = OnDragStart (map (mapEffect lns) next)
@@ -145,6 +149,9 @@ interpretEffect this m = runFreeM go m
       pure next
     go (PreventDefault e next) = do
       _ <- R.preventDefault e
+      pure next
+    go (PersistEvent e next) = do
+      _ <- persistEvent e
       pure next
     go (StopPropagation e next) = do
       _ <- R.stopPropagation e
@@ -209,17 +216,27 @@ foreach_ lns f = { render }
 
 --------------------------------------------------------------------------------
 
+-- TODO: persist event
+
 onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
-onClick f effect = P.onClick \e -> effect (f e)
+onClick f effect = P.onClick \e -> do
+  persistEvent $ unsafeCoerce e
+  effect (f e)
 
 onMouseDown :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
-onMouseDown f effect = P.onMouseDown \e -> effect (f e)
+onMouseDown f effect = P.onMouseDown \e -> do
+  persistEvent $ unsafeCoerce e
+  effect (f e)
 
 onMouseUp :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
-onMouseUp f effect = P.onMouseUp \e -> effect (f e)
+onMouseUp f effect = P.onMouseUp \e -> do
+  persistEvent $ unsafeCoerce e
+  effect (f e)
 
 onMouseMove :: forall eff st. (R.MouseEvent -> Effect eff st Unit) -> Props eff st
-onMouseMove f effect = P.onMouseMove \e -> effect (f e)
+onMouseMove f effect = P.onMouseMove \e -> do
+  persistEvent $ unsafeCoerce e
+  effect (f e)
 
 onMouseDrag :: forall eff st. (MouseDragState -> Effect eff st Unit) -> Props eff st
 onMouseDrag f = onMouseDown \e -> do
@@ -292,8 +309,8 @@ color v _ = P.unsafeMkProps "color" v
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
-style :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
-style props children = { render: \effect st -> [ R.style (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+-- style :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+-- style props children = { render: \effect st -> [ R.style (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 svg :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 svg props children = { render: \effect st -> [ SVG.svg (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
@@ -371,16 +388,15 @@ uicmp = UIComponent c1'
 list :: forall eff. Component eff AppState
 list = div
  []
- [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
+ [ svg [ onMouseDown \e -> modify (f e), shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    [ uicomponent uicmp
    ]
  , state \st -> text st.debug 
  ]
  where
-   -- f :: R.MouseEvent -> AppState -> AppState
-   f :: { pageX :: Number } -> AppState -> AppState
+   f :: R.MouseEvent -> AppState -> AppState
    f e st = st
-     { debug = "Debug: " <> show (e.pageX + e.pageX) -- <> ", " <> show e.pageY -- <> show (snap uicmp (e.pageX × e.pageY))
+     { debug = "Debug: " <> show (e.pageX + e.pageX) <> ", " <> show e.pageY <> ", " <> show (snap uicmp (e.pageX × e.pageY))
      }
 
 --------------------------------------------------------------------------------
@@ -572,7 +588,7 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
         cx     = bx + (index' + 1.0) * gap + index' * cw
 
 uicomponent :: forall eff. UIComponent -> Component eff AppState
-uicomponent (UIComponent uicmp) = g [ onMouseDrag \e -> modify \st -> st { debug = show e }] $
+uicomponent (UIComponent uicmp) = g [ ] $
   [ rect
     [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []

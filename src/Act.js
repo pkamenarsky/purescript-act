@@ -49,3 +49,9 @@ exports.dragStart = function(f) {
     document.addEventListener ('mousemove', mousemoveListener, true);
   }
 }
+
+exports.persistEvent = function(e) {
+  return function() {
+    e.persist();
+  }
+}
