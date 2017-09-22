@@ -1,5 +1,6 @@
 module Act where
 
+import Control.Alternative
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Eff
@@ -334,12 +335,19 @@ mkSpec st cmp = R.spec st \this -> do
   st' <- R.readState this
   pure $ R.div [] (cmp.render (unsafeCoerce interpretEffect $ this) st')
 
-type AppState = (Maybe Vec × Maybe Vec) × (Maybe String × Array Int)
+type AppState =
+  { debug :: String
+  }
+
+emptyAppState :: AppState
+emptyAppState =
+  { debug: ""
+  }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui)
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-  where ui = R.createFactory (R.createClass (mkSpec (Tuple (Tuple Nothing Nothing) (Tuple Nothing [])) list)) unit
+  where ui = R.createFactory (R.createClass (mkSpec emptyAppState list)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -362,11 +370,16 @@ uicmp = UIComponent c1'
 
 list :: forall eff. Component eff AppState
 list = div
- []
+ [ onClick \e -> modify (f $ unsafeCoerce e) ]
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "1000px" ]
    [ uicomponent uicmp
    ]
+ , state \st -> text st.debug 
  ]
+ where
+   f e st = st
+     { debug = show $ snap uicmp (e.pageX × e.pageY)
+     }
 
 --------------------------------------------------------------------------------
 
@@ -456,8 +469,35 @@ inside = undefined
 inradius :: Number -> Vec -> Vec -> Boolean
 inradius = undefined
 
-snap :: UIComponent' -> Vec -> Maybe Path
-snap (UIComponent' rcmp) v = go 0 rcmp.utype
+firstJust :: forall a b. Array a -> (a -> Maybe b) -> Maybe b
+firstJust as f = go (L.fromFoldable as)
+  where
+    go (L.Cons a as)
+      | Just a' <- f a = Just a'
+      | otherwise      = go as
+    go L.Nil = Nothing
+
+snap :: UIComponent -> Vec -> Maybe (Array RArgIndex)
+snap (UIComponent uicmp) v
+  | inside v uicmp.bounds =
+        firstJust uicmp.internal goI
+    <|> goC (L.fromFoldable uicmp.external.conns)
+  where
+    goI :: UIInternal -> Maybe (Array RArgIndex)
+    goI uiint
+      | inside v uiint.inner
+      , Just child <- uiint.component = map (cons uiint.arg) $ snap child v
+      | inside v uiint.outer = goC (L.fromFoldable uiint.conns)
+      | otherwise = Nothing
+
+    goC (L.Cons (l × v' × ai) ts)
+      | inradius 10.0 v v' = Just [ai]
+      | otherwise          = goC ts
+    goC L.Nil = Nothing
+  | otherwise = Nothing
+
+snap' :: UIComponent' -> Vec -> Maybe Path
+snap' (UIComponent' rcmp) v = go 0 rcmp.utype
   where
     go index (L.Cons t ts) = case t of
       Left exconn
@@ -465,7 +505,7 @@ snap (UIComponent' rcmp) v = go 0 rcmp.utype
         | otherwise                  -> go (index + 1) ts
       Right (int × layout)
         | inside v layout.inner
-        , Just child' <- layout.child -> map (Go index) $ snap child' v
+        , Just child' <- layout.child -> map (Go index) $ snap' child' v
         | inside v layout.outer       -> goI 0 int
         | otherwise                   -> go (index + 1) ts
     go index L.Nil = Nothing

@@ -81,6 +81,9 @@ type Index = Int
 
 newtype RArgIndex = RArgIndex Int
 
+instance showRArgIndex :: Show RArgIndex where
+  show (RArgIndex index) = show index
+
 derive instance genericRArgIndex :: Generic RArgIndex
 
 argRange :: Int -> Array RArgIndex
