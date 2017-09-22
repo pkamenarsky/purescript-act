@@ -341,7 +341,7 @@ type AppState =
 
 emptyAppState :: AppState
 emptyAppState =
-  { debug: ""
+  { debug: "Debug: "
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -370,7 +370,7 @@ uicmp = UIComponent c1'
 
 list :: forall eff. Component eff AppState
 list = div
- [ onClick \e -> modify (f $ unsafeCoerce e) ]
+ [ onMouseDown \e -> modify (f e) ]
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "1000px" ]
    [ uicomponent uicmp
    ]
@@ -378,7 +378,7 @@ list = div
  ]
  where
    f e st = st
-     { debug = show $ snap uicmp (e.pageX × e.pageY)
+     { debug = "Debug: " <> show e.pageX <> ", " <> show e.pageY <> show (snap uicmp (e.pageX × e.pageY))
      }
 
 --------------------------------------------------------------------------------
@@ -464,10 +464,18 @@ layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype
 data Path = Done | Go Int Path
 
 inside :: Vec -> Rect -> Boolean
-inside = undefined
+inside (vx × vy) (rx × ry × rw × rh)
+  | vx < rx = false
+  | vy < ry = false
+  | vx >= rx + rw = false
+  | vy >= ry + rh = false
+  | otherwise = true
 
 inradius :: Number -> Vec -> Vec -> Boolean
-inradius = undefined
+inradius r (ox × oy) (vx × vy) = dx * dx + dy * dy <= r * r
+  where
+    dx = vx - ox
+    dy = vy - oy
 
 firstJust :: forall a b. Array a -> (a -> Maybe b) -> Maybe b
 firstJust as f = go (L.fromFoldable as)
@@ -479,7 +487,8 @@ firstJust as f = go (L.fromFoldable as)
 
 snap :: UIComponent -> Vec -> Maybe (Array RArgIndex)
 snap (UIComponent uicmp) v
-  | inside v uicmp.bounds =
+  -- | inside v uicmp.bounds =
+  | true =
         firstJust uicmp.internal goI
     <|> goC (L.fromFoldable uicmp.external.conns)
   where
