@@ -439,11 +439,12 @@ newtype UIComponent' = UIComponent'
   }
 
 layoutUIComponent' :: Rect -> RComponent' -> UIComponent'
-layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype }) = UIComponent' { rtype: rtype, utype: map f utype }
+layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype })
+  = UIComponent' { rtype: rtype, utype: map layout utype }
   where
-    f :: Either RType (L.List (Either RType RComponent'))
-      -> Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout)
-    f t = case t of
+    layout :: Either RType (L.List (Either RType RComponent'))
+           -> Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout)
+    layout t = case t of
       Left  t -> undefined
       Right t -> undefined
 
@@ -459,9 +460,9 @@ snap :: UIComponent' -> Vec -> Maybe Path
 snap (UIComponent' rcmp) v = go 0 rcmp.utype
   where
     go index (L.Cons t ts) = case t of
-      Left excl
-        | inradius 10.0 v excl.pos -> Just $ Go index Done
-        | otherwise                -> go (index + 1) ts
+      Left exconn
+        | inradius 10.0 v exconn.pos -> Just $ Go index Done
+        | otherwise                  -> go (index + 1) ts
       Right (int × layout)
         | inside v layout.inner
         , Just child' <- layout.child -> map (Go index) $ snap child' v
@@ -471,12 +472,12 @@ snap (UIComponent' rcmp) v = go 0 rcmp.utype
 
     goI :: Int -> L.List (Either InConnLayout InCmpLayout) -> Maybe Path
     goI index (L.Cons t ts) = case t of
-      Left icl
-        | inradius 10.0 v icl.pos -> Just $ Go index Done
-        | otherwise               -> goI (index + 1) ts
-      Right icmpl
-        | inside v icmpl.bounds   -> Just $ Go index Done
-        | otherwise               -> goI (index + 1) ts
+      Left inconn
+        | inradius 10.0 v inconn.pos -> Just $ Go index Done
+        | otherwise                  -> goI (index + 1) ts
+      Right incmp
+        | inside v incmp.bounds      -> Just $ Go index Done
+        | otherwise                  -> goI (index + 1) ts
     goI _ L.Nil = Nothing
 
 uicomponent' :: forall eff st. UIComponent' -> Component eff st
