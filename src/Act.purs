@@ -53,12 +53,23 @@ type DragState =
 type AppState =
   { debug     :: String
   , dragState :: Maybe DragState
+  , component :: UIComponent
   }
+
+mkCmp :: RType -> UIComponent
+mkCmp rtype = UIComponent c1'
+  where
+   UIComponent c1 = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents rtype))
+   c2 = case c1.internal A.!! 0 of
+     Just i  -> layoutUIComponent i.inner testComponent2
+     Nothing -> undefined
+   c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
 
 emptyAppState :: AppState
 emptyAppState =
-  { debug: "Debug: "
+  { debug    : "Debug: "
   , dragState: Nothing
+  , component: mkCmp componentType
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -76,20 +87,11 @@ main = void (elm' >>= RD.render ui')
 
 --------------------------------------------------------------------------------
 
-uicmp :: UIComponent
-uicmp = UIComponent c1'
-  where
-   UIComponent c1 = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) testComponent
-   c2 = case c1.internal A.!! 0 of
-     Just i  -> layoutUIComponent i.inner testComponent2
-     Nothing -> undefined
-   c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
-
 ui :: forall eff. Component eff AppState
 ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-   $ [ uicomponent L.Nil uicmp
+   $ [ uicomponent L.Nil st.component
      ]
   <> case st.dragState of
        Just ds -> [ line ds.start ds.end ]
@@ -350,8 +352,21 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
               }
             DragEnd  e -> modify \st -> st
                 { debug = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
-                    Just (a0 × a1) -> show (getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType)
+                    Just (a0 × a1) -> let
+                      t = getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType
+                      c = getType (L.Cons aindex L.Nil) $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
+                      tr = unifyType c t
+                      t' = specifyType tr componentType
+                      in show t'
                     Nothing        -> "None"
+                , component = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
+                    Just (a0 × a1) -> let
+                      t = getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType
+                      c = getType (L.Cons aindex L.Nil) $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
+                      tr = unifyType c t
+                      t' = specifyType tr componentType
+                      in mkCmp t'
+                    Nothing        -> undefined
                 }
         , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0)
         ]
