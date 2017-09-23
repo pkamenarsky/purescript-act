@@ -193,6 +193,14 @@ inradius r (ox × oy) (vx × vy) = dx * dx + dy * dy <= r * r
     dx = vx - ox
     dy = vy - oy
 
+firstJustL :: forall a b. L.List a -> (a -> Maybe b) -> Maybe b
+firstJustL as f = go as
+  where
+    go (L.Cons a as)
+      | Just a' <- f a = Just a'
+      | otherwise      = go as
+    go L.Nil = Nothing
+
 firstJust :: forall a b. Array a -> (a -> Maybe b) -> Maybe b
 firstJust as f = go (L.fromFoldable as)
   where
@@ -341,10 +349,11 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                   }
               }
             DragEnd  e -> modify \st -> st
-                { debug = "Snap: " <> show (map (snapToInternal (e.pageX × e.pageY)) ctxE)
+                { debug = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
+                    Just (a0 × a1) -> show (getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType)
+                    Nothing        -> "None"
                 }
         , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0)
-        , data_ "context" (show (map (_.arg) ctxE × aindex' × aindex))
         ]
         []
       , label (x' + offset align × y' + 4.0) align name

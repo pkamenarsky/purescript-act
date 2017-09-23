@@ -26,16 +26,11 @@ import Prelude
 
 --------------------------------------------------------------------------------
 
-foreign import traceAny :: forall a b. a -> (Unit -> b) -> b
-
 foreign import dragStart :: forall eff a. (Int -> R.Event -> Eff eff a) -> Eff eff Unit
 
 foreign import persistEvent :: forall eff a. R.Event -> Eff eff Unit
 
 foreign import elementDataForXY :: forall eff. String -> Number -> Number -> Eff eff String
-
-traceAnyM :: forall m a. Monad m => a -> m a
-traceAnyM s = traceAny s \_ -> pure s
 
 lensAt :: forall a. Int -> Lens' (Array a) a
 lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpdateAt index)

@@ -17,6 +17,7 @@ import Data.Array as A
 import Data.List as L
 import Data.Map as M
 import Undefined
+import Trace
 
 infixr 6 Tuple as ×
 infixr 6 type Tuple as ×
@@ -195,6 +196,15 @@ specifyType (RSpecify v c) t@(RVar v')
 specifyType tr@(RSpecify v c) (RApp f x)  = RApp (specifyType tr f) (specifyType tr x)
 specifyType tr@(RSpecify v c) (RFun as r) = RFun (map (specifyType tr) as) (specifyType tr r)
 specifyType _ t = t
+
+getType :: List RArgIndex -> RType -> RType
+getType as r | trace_ (as × r) false = undefined
+getType (Cons (RArgIndex 0) as) (RFun (Cons t _) _) = getType as t
+getType (Cons (RArgIndex 0) as) t = getType as t
+getType (Cons (RArgIndex i) as) (RFun (Cons f fs) r)
+  = getType (Cons (RArgIndex (i - 1)) as) (RFun fs r)
+getType Nil t = t
+getType _ _ = undefined
 
 --------------------------------------------------------------------------------
 

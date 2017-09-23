@@ -1,12 +1,3 @@
-exports.traceAny = function (x) {
-  return function (k) {
-    // node only recurses two levels into an object before printing
-    // "[object]" for further objects when using console.log()
-    console.log(x);
-    return k({});
-  };
-};
-
 // https://stackoverflow.com/a/7616484
 function hashCode(str) {
   var hash = 0, i, chr;
