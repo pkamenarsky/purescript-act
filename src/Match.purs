@@ -16,9 +16,7 @@ import Data.Generic
 import Data.Array as A
 import Data.List as L
 import Data.Map as M
-
-undefined :: forall a. a
-undefined = unsafeCoerce unit
+import Undefined
 
 infixr 6 Tuple as ×
 infixr 6 type Tuple as ×
@@ -160,7 +158,7 @@ extractComponents t = extractComponents' t $ RComponent { rtype: t, external: []
     extractComponents' :: RType -> RComponent -> Either RType RComponent
     extractComponents' (RConst (Const "Component")) cmp' = Right cmp'
     extractComponents' (RFun args (RConst (Const "Component"))) cmp'
-      = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
+      = Right $ foldr extractArg cmp' $ zipArgRange (A.fromFoldable args)
       where
         extractArg :: RType × RArgIndex -> RComponent -> RComponent
         extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
