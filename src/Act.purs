@@ -19,8 +19,9 @@ import Data.Lens.Index
 import Data.Tuple
 import Type.Proxy
 import Unsafe.Coerce
-import Prelude hiding (div)
 import Match
+import Undefined
+import Component
 import DOM as D
 import DOM.Node.Types as D
 import Data.Array as A
@@ -40,25 +41,30 @@ import Data.Maybe (fromJust)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import React (transformState)
-import Undefined
-
-import Component
+import Prelude hiding (div)
 
 --------------------------------------------------------------------------------
 
+type DragState =
+  { start :: Vec
+  , end   :: Vec
+  }
+
 type AppState =
-  { debug :: String
+  { debug     :: String
+  , dragState :: Maybe DragState
   }
 
 emptyAppState :: AppState
 emptyAppState =
   { debug: "Debug: "
+  , dragState: Nothing
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
-main = void (elm' >>= RD.render ui)
+main = void (elm' >>= RD.render ui')
   -- where ui = R.createFactory (R.createClass (mkSpec (Tuple Nothing []) list)) unit
-  where ui = R.createFactory (R.createClass (mkSpec emptyAppState list)) unit
+  where ui' = R.createFactory (R.createClass (mkSpec emptyAppState ui)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -73,18 +79,21 @@ main = void (elm' >>= RD.render ui)
 uicmp :: UIComponent
 uicmp = UIComponent c1'
   where
-   UIComponent c1 = layoutUIComponent (300.5 × 100.5 × 1300.0 × 400.0) testComponent
+   UIComponent c1 = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) testComponent
    c2 = case c1.internal A.!! 0 of
      Just i  -> layoutUIComponent i.inner testComponent2
      Nothing -> undefined
    c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
 
-list :: forall eff. Component eff AppState
-list = div
+ui :: forall eff. Component eff AppState
+ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-   [ uicomponent L.Nil uicmp
-   ]
+   $ [ uicomponent L.Nil uicmp
+     ]
+  <> case st.dragState of
+       Just ds -> [ line ds.start ds.end ]
+       Nothing -> []
  , state \st -> text st.debug 
  ]
 
@@ -257,7 +266,7 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
     cy     = by + gap
 
     connE :: Vec -> Int × RType × RArgIndex -> Label × Vec × RArgIndex
-    connE (ox × oy) (index × t × aindex) = show t × (ox × (oy + I.toNumber index * gap)) × aindex
+    connE (ox × oy) (index × t × aindex) = show t × (ox × (oy + gap + I.toNumber index * gap)) × aindex
 
     connI :: Vec -> Int × Either RType RComponent × RArgIndex -> Label × Vec × RArgIndex
     connI (ox × oy) (index × t × aindex) = case t of
@@ -278,13 +287,21 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
 
 type CtxE = L.List UIInternal
 
+snapToInternal :: Vec -> UIInternal -> Maybe RArgIndex
+snapToInternal v uiint = goC (L.fromFoldable uiint.conns)
+  where
+     goC (L.Cons (l × v' × ai) ts)
+       | inradius 10.0 v v' = Just ai
+       | otherwise          = goC ts
+     goC L.Nil = Nothing
+
 uicomponent :: forall eff. CtxE -> UIComponent -> Component eff AppState
 uicomponent ctxE (UIComponent uicmp) = g [ ] $
   [ rect
     [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
     []
   ]
-  <> map (conn "end" ((\(RComponent rcmp) -> rcmp.rtype) uicmp.component) $ Just uicmp.bounds) uicmp.external.conns
+  <> map (conn "end" Nothing (Just uicmp.bounds)) uicmp.external.conns
   <> map container uicmp.internal
   where
     bx × by × bw × bh = uicmp.bounds
@@ -292,7 +309,7 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
     container :: UIInternal -> Component eff AppState
     container uiint = g [] $
       [ rect
-        [ x (px ox), y (px oy), width (px ow), height (px oh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ]
+        [ x (px ox), y (px oy), width (px ow), height (px oh), rx (px 7.0), ry (px 7.0), stroke "#333", strokeWidth "3", fill "transparent" ]
         []
       ]
       <> case uiint.component of
@@ -302,25 +319,42 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
                []
              ]
-      <> map (conn "start" undefined Nothing) uiint.conns
+      <> map (conn "start" (Just uiint.arg) Nothing) uiint.conns
       where
         ox × oy × ow × oh = uiint.outer
         ix × iy × iw × ih = uiint.inner
 
-    conn :: String -> RType -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff AppState
-    conn align rtype bounds (name × (x × y) × aindex) = g [] $
+    conn :: String -> Maybe RArgIndex -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff AppState
+    conn align aindex' bounds (name × (x × y) × aindex) = g [] $
       [ circle
-        [ onMouseDown \e -> modify \st -> st { debug = show aindex <> ": " <> show rtype }
-        , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ]
+        [ onMouseDrag \ds -> case ds of
+            DragStart e -> modify \st -> st
+              { debug     = (show (map (_.arg) ctxE × aindex' × aindex))
+              , dragState = Just
+                  { start: e.pageX × e.pageY
+                  , end  : e.pageX × e.pageY
+                  }
+              }
+            DragMove e -> modify \st -> st
+              { dragState = flip map st.dragState \ds -> ds
+                  { end = e.pageX × e.pageY
+                  }
+              }
+            DragEnd  e -> modify \st -> st
+                { debug = "Snap: " <> show (map (snapToInternal (e.pageX × e.pageY)) ctxE)
+                }
+        , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0)
+        , data_ "context" (show (map (_.arg) ctxE × aindex' × aindex))
+        ]
         []
       , label (x' + offset align × y' + 4.0) align name
       ]
       <> case bounds of
-           Just _  -> [ line (x' + 5.0 × y') (x' + 36.0 × y') ]
+           Just _  -> [ line (x' + 5.0 × y') (x' + 30.0 × y') ]
            Nothing -> []
       where
-        x' = x - 7.0
-        y' = y + 7.0
+        x' = x - 0.0
+        y' = y + 0.0
 
         offset "start" = 20.0
         offset "end"   = -20.0

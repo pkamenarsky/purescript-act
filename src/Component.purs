@@ -32,6 +32,8 @@ foreign import dragStart :: forall eff a. (Int -> R.Event -> Eff eff a) -> Eff e
 
 foreign import persistEvent :: forall eff a. R.Event -> Eff eff Unit
 
+foreign import elementDataForXY :: forall eff. String -> Number -> Number -> Eff eff String
+
 traceAnyM :: forall m a. Monad m => a -> m a
 traceAnyM s = traceAny s \_ -> pure s
 
@@ -72,6 +74,7 @@ data EffectF eff st next =
   | ModifyRemotely (StaticPtr (Json -> st -> (Tuple st Json))) Json (Json -> next)
   | Effect Json (Json -> Eff eff Json) (Json -> next)
   | Log String next
+  | ElementDataForXY String Number Number (String -> next)
   | PersistEvent R.Event next
   | PreventDefault R.Event next
   | StopPropagation R.Event next
@@ -85,6 +88,7 @@ mapEffectF :: forall eff st stt next. Lens' st stt -> EffectF eff stt next -> Ef
 mapEffectF lns (ModifyRemotely a f next) = undefined
 mapEffectF lns (Modify f next) = Modify (over lns f) next
 mapEffectF lns (Log str next) = Log str next
+mapEffectF lns (ElementDataForXY prefix x y next) = ElementDataForXY prefix x y next
 mapEffectF lns (PersistEvent e next) = PersistEvent e next
 mapEffectF lns (PreventDefault e next) = PreventDefault e next
 mapEffectF lns (StopPropagation e next) = StopPropagation e next
@@ -106,6 +110,9 @@ getHTTP url = liftF $ Effect (fromString url) (\_ -> pure $ fromString "Result'"
 log :: forall eff st. String -> Effect eff st Unit
 log str = liftF $ Log str unit
 
+getElementDataForXY :: forall eff st. String -> Number -> Number -> Effect eff st String
+getElementDataForXY field x y = liftF $ ElementDataForXY field x y id
+
 preventDefault :: forall eff st. R.Event -> Effect eff st Unit
 preventDefault e = liftF $ PreventDefault e unit
 
@@ -126,6 +133,9 @@ interpretEffect this m = runFreeM go m
     go (Log str next) = do
       logShow str
       pure next
+    go (ElementDataForXY field x y next) = do
+      r <- elementDataForXY field x y
+      pure (next r)
     go (PreventDefault e next) = do
       _ <- R.preventDefault e
       pure next
@@ -230,6 +240,9 @@ width v _ = P.width v
 
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
+
+data_ :: forall eff st. String -> String -> Props eff st
+data_ prefix v _ = P.unsafeMkProps ("data-" <> prefix) v
 
 d :: forall eff st. String -> Props eff st
 d v _ = P.unsafeMkProps "d" v

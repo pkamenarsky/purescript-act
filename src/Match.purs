@@ -241,7 +241,7 @@ componentType = fun
   , array a
   , fun [a] component
   , fun
-    [ person
+    [ a
     , fun
       [ location
       , a
@@ -253,7 +253,7 @@ componentType = fun
   component
 
 componentType2 :: RType
-componentType2 = fun [ location, fun [a] component ] component
+componentType2 = fun [ person, fun [a] component ] component
 
 testComponent :: RComponent
 testComponent = either undefined id (extractComponents componentType)

@@ -55,3 +55,18 @@ exports.persistEvent = function(e) {
     e.persist();
   }
 }
+
+exports.elementDataForXY = function(field) {
+  return function(x) {
+    return function(y) {
+      return function() {
+        const el = document.elementFromPoint(x, y); 
+        if (el) {
+          return el.dataset[field];
+        }
+        else
+          return "";
+      }
+    }
+  }
+}
