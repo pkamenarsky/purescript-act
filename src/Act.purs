@@ -106,6 +106,7 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
+       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) type1
      ]
   <> case st.dragState of
        Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -469,14 +470,31 @@ firstJust as f = go (L.fromFoldable as)
 uirect :: forall eff st. Rect -> Component eff st
 uirect (bx × by × bw × bh) = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
 
-uicircle :: forall eff st. Vec -> Component eff st
-uicircle (x' × y') = circle [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
+data UILabel = UILabelLeft String | UILabelRight String
+
+uicircle :: forall eff st. Vec -> UILabel -> Component eff st
+uicircle (x' × y') label' = g [] $
+  [ circle [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
+  , uilabel label'
+  ]
+  where
+    uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
+    uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
 
 --------------------------------------------------------------------------------
 
+tn :: Int -> Number
+tn = I.toNumber
+
 typeComponent :: forall eff st. Rect -> RType -> Component eff st
-typeComponent bounds rtype
-  | Just (incoming × children) <- extract rtype = g [] $
-    [ uirect bounds
-    ]
+typeComponent bounds@(bx × by × bw × bh) rtype
+  | Just (incoming × children) <- extract rtype = g [] $ concat
+      [ [ uirect bounds ]
+      , inc (A.fromFoldable incoming)
+      ]
+  where
+    gap = 30.0
+
+    inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
+      uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
   | otherwise = g [] []
