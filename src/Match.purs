@@ -45,7 +45,7 @@ instance eqConst :: Eq Const where
 
 data RType = RVar Var
            | RConst Const
-           | RRecord (Array (String × String))
+           -- | RRecord (Array (String × String))
            | RApp RType RType
            | RFun (List (Label × RType)) RType
 
@@ -54,7 +54,7 @@ derive instance genericRType :: Generic RType
 instance showRType :: Show RType where
   show (RVar (Var a))     = a
   show (RConst (Const a)) = a
-  show (RRecord m)        = "{" <> joinWith "," (map (\(f × t) -> f <> ": " <> t) m) <> "}"
+  -- show (RRecord m)        = "{" <> joinWith "," (map (\(f × t) -> f <> ": " <> t) m) <> "}"
   show (RApp a b)         = show a <> "<" <> show b <> ">"
   show (RFun as r)        = "(" <> joinWith " -> " (A.fromFoldable (map (\(l × t) -> l <> " : " <> show t) as <> (Cons (show r) Nil))) <> ")"
 
@@ -324,3 +324,19 @@ type C = Int
 
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
 t1 = \a2 a3 a4 -> a4 (\x -> a2 x)
+
+--------------------------------------------------------------------------------
+
+extract :: RType -> Maybe (L.List (Label × RType) × L.List (Label × RType))
+extract (RFun args (RConst (Const "Component"))) = Just (incoming args L.Nil × children args L.Nil)
+  where
+    incoming :: L.List (Label × RType) -> L.List (Label × RType) -> L.List (Label × RType)
+    incoming (L.Cons (_ × RFun _ _) ls) ts = incoming ls ls
+    incoming (L.Cons t ls) ts = t L.: incoming ls ts
+    incoming L.Nil ts = ts
+    
+    children :: L.List (Label × RType) -> L.List (Label × RType) -> L.List (Label × RType)
+    children (L.Cons t@(_ × RFun _ _) ls) ts = t L.: children ls ls
+    children (L.Cons t ls) ts = children ls ts
+    children L.Nil ts = ts
+extract _ = Nothing
