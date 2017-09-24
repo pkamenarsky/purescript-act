@@ -317,6 +317,9 @@ path props children = { render: \effect st -> [ SVG.path (map (\p -> p effect) p
 svgtext :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 svgtext props children = { render: \effect st -> [ SVG.text (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
+code :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+code props children = { render: \effect st -> [ R.code (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
 text :: forall eff st. String -> Component eff st
 text str = { render: \_ _ -> [ R.text str ] }
 

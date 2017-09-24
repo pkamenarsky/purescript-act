@@ -15,3 +15,7 @@ exports.traceAny = function (x) {
     return k({});
   };
 };
+
+exports.stringify = function (x) {
+  return JSON.stringify(x, undefined, 2);
+};

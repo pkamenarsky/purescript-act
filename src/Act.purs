@@ -10,7 +10,7 @@ import Data.Array
 import Data.Either
 import Data.Functor
 import Data.Exists
-import Data.Generic.Rep
+import Data.Generic
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
@@ -22,6 +22,7 @@ import Unsafe.Coerce
 import Match
 import Undefined
 import Component
+import Trace
 import DOM as D
 import DOM.Node.Types as D
 import Data.Array as A
@@ -59,6 +60,7 @@ type AppState =
   { debug     :: String
   , dragState :: Maybe DragState
   , component :: UIComponent
+  , rtype     :: RType
   }
 
 mkCmp :: RType -> UIComponent
@@ -70,11 +72,17 @@ mkCmp rtype = UIComponent c1'
      Nothing -> undefined
    c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
 
+layout :: AppState -> AppState
+layout st = st
+  { component = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents st.rtype))
+  }
+
 emptyAppState :: AppState
 emptyAppState =
   { debug    : "Debug: "
   , dragState: Nothing
   , component: mkCmp componentType
+  , rtype    : componentType
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -102,7 +110,7 @@ ui = state \st -> div
        Just (DragConn ds) -> [ line ds.start ds.end ]
        Just (DragHOC hoc) -> [ uicomponent L.Nil hoc.hoc ]
        Nothing -> []
- , state \st -> text st.debug 
+ , state \st -> code [] [ text st.debug ]
  ]
 
 --------------------------------------------------------------------------------
@@ -186,6 +194,14 @@ layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype
       Right t -> undefined
 
 data Path = Done | Go Int Path
+
+intersect :: Rect -> Rect -> Boolean
+intersect (rx × ry × rw × rh) (sx × sy × sw × sh)
+  | sx + sw < rx = false
+  | sy + sh < ry = false
+  | sx >= rx + rw = false
+  | sy >= ry + rh = false
+  | otherwise = true
 
 inside :: Vec -> Rect -> Boolean
 inside (vx × vy) (rx × ry × rw × rh)
@@ -361,7 +377,20 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                       }
                     _ -> ds
                 }
-              DragEnd  e -> pure unit
+              DragEnd e -> let
+                getBounds (UIComponent cmp) = cmp.bounds
+
+                chint :: Maybe DragState -> Array UIInternal
+                chint (Just (DragHOC ds)) = flip map uicmp.internal \chint -> if true -- intersect chint.inner (getBounds ds.hoc)
+                  then chint { component = Just ds.hoc }
+                  else chint
+                chint _ = undefined
+
+                in modify \st -> layout $ st
+                  { debug = stringify_ $ UIComponent $ uicmp { internal = chint st.dragState }
+                  , dragState = Nothing
+                  , component = (\(UIComponent uicmp) -> UIComponent $ uicmp { internal = chint st.dragState }) st.component
+                  }
         , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0)
         ]
         []
