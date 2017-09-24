@@ -66,23 +66,23 @@ type AppState =
 mkCmp :: RType -> UIComponent
 mkCmp rtype = UIComponent c1'
   where
-   UIComponent c1 = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents rtype))
+   UIComponent c1 = layoutUIComponent L.Nil (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents rtype))
    c2 = case c1.internal A.!! 0 of
-     Just i  -> layoutUIComponent i.inner testComponent2
+     Just i  -> layoutUIComponent L.Nil i.inner testComponent2
      Nothing -> undefined
    c1' = (c1 { internal = fromMaybe undefined (A.modifyAt 0 (\uii -> uii { component = Just c2 }) c1.internal) })
 
 layout :: AppState -> AppState
 layout st = st
-  { component = layoutUIComponent (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents st.rtype))
+  { component = layoutUIComponent L.Nil (200.5 × 100.5 × 1000.0 × 400.0) (either undefined id (extractComponents st.rtype))
   }
 
 emptyAppState :: AppState
 emptyAppState =
-  { debug    : "Debug: "
-  , dragState: Nothing
-  , component: mkCmp componentType
-  , rtype    : componentType
+  { debug     : "Debug: "
+  , dragState : Nothing
+  , component : mkCmp componentType
+  , rtype     : componentType
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -136,6 +136,8 @@ label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica N
 
 type Label = String
 
+type Substitution = RArgIndex × RArgIndex
+
 type UIExternal = 
   { conns   :: Array (Label × Vec × RArgIndex)
   }
@@ -152,47 +154,48 @@ newtype UIComponent = UIComponent
   , bounds    :: Rect
   , external  :: UIExternal
   , internal  :: Array UIInternal
+  , substs    :: L.List Substitution
   }
 
-type ExConnLayout =
-  { rtype :: RType
-  , pos   :: Vec
-  , label :: String
-  }
+-- type ExConnLayout =
+--   { rtype :: RType
+--   , pos   :: Vec
+--   , label :: String
+--   }
+-- 
+-- type InConnLayout =
+--   { rtype :: RType
+--   , pos   :: Vec
+--   , label :: String
+--   }
+-- 
+-- type InCmpLayout =
+--   { rcomponent :: RComponent'
+--   , bounds     :: Rect
+--   }
+-- 
+-- type InnerLayout =
+--   { inner :: Rect
+--   , outer :: Rect
+--   , child :: Maybe UIComponent'
+--   }
 
-type InConnLayout =
-  { rtype :: RType
-  , pos   :: Vec
-  , label :: String
-  }
+-- newtype UIComponent' = UIComponent'
+--   { rtype    :: RType
+--   , utype    :: L.List (Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout))
+--   }
+-- 
+-- layoutUIComponent' :: Rect -> RComponent' -> UIComponent'
+-- layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype })
+--   = UIComponent' { rtype: rtype, utype: map layout utype }
+--   where
+--     layout :: Either RType (L.List (Either RType RComponent'))
+--            -> Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout)
+--     layout t = case t of
+--       Left  t -> undefined
+--       Right t -> undefined
 
-type InCmpLayout =
-  { rcomponent :: RComponent'
-  , bounds     :: Rect
-  }
-
-type InnerLayout =
-  { inner :: Rect
-  , outer :: Rect
-  , child :: Maybe UIComponent'
-  }
-
-newtype UIComponent' = UIComponent'
-  { rtype    :: RType
-  , utype    :: L.List (Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout))
-  }
-
-layoutUIComponent' :: Rect -> RComponent' -> UIComponent'
-layoutUIComponent' bounds@(bx × by × bw × bh) cmp@(RComponent' { rtype, utype })
-  = UIComponent' { rtype: rtype, utype: map layout utype }
-  where
-    layout :: Either RType (L.List (Either RType RComponent'))
-           -> Either ExConnLayout (L.List (Either InConnLayout InCmpLayout) × InnerLayout)
-    layout t = case t of
-      Left  t -> undefined
-      Right t -> undefined
-
-data Path = Done | Go Int Path
+-- data Path = Done | Go Int Path
 
 intersect :: Rect -> Rect -> Boolean
 intersect (rx × ry × rw × rh) (sx × sy × sw × sh)
@@ -275,19 +278,20 @@ firstJust as f = go (L.fromFoldable as)
 --         | inside v incmp.bounds      -> Just $ Go index Done
 --         | otherwise                  -> goI (index + 1) ts
 --     goI _ L.Nil = Nothing
+-- 
+-- uicomponent' :: forall eff st. UIComponent' -> Component eff st
+-- uicomponent' (UIComponent' rcmp) = g [] $
+--  []
 
-uicomponent' :: forall eff st. UIComponent' -> Component eff st
-uicomponent' (UIComponent' rcmp) = g [] $
- []
-
-layoutUIComponent :: Rect -> RComponent -> UIComponent
-layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
+layoutUIComponent :: L.List Substitution -> Rect -> RComponent -> UIComponent
+layoutUIComponent substs bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UIComponent
   { component: cmp
   , bounds   : bounds
   , external :
     { conns: map (connE ((bx - gap) × by)) (indexedRange rcmp.external)
     }
   , internal : map internal (indexedRange rcmp.internal)
+  , substs   : substs
   }
   where
     ccount = I.toNumber (length rcmp.internal)
@@ -304,16 +308,19 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
       Left  t -> show t × (ox × (oy + I.toNumber index * gap)) × Left t × aindex
       Right t -> "HOC" × (ox × (oy + I.toNumber index * gap)) × Right t × aindex
 
-    internal :: Int × Array (Either RType RComponent × RArgIndex) -> UIInternal
-    internal (index × args) =
+    internal :: Int × Array (Either RType RComponent × RArgIndex) × RArgIndex -> UIInternal
+    internal (index × args × iai) =
       { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
-      , inner    : (cx + gap * 5.0) × (by + gap * 4.0) × (cw - gap * 6.0) × (bh - 6.0 * gap)
+      , inner    : inner
       , conns    : map (connI ((cx + gap) × (cy + gap))) (indexedRange args)
-      , component: Nothing
+      , component: firstJustL substs \(v × s) -> if s == iai
+          then Just $ layoutUIComponent L.Nil inner undefined
+          else undefined
       }
       where
         index' = I.toNumber index
         cx     = bx + (index' + 1.0) * gap + index' * cw
+        inner  = (cx + gap * 5.0) × (by + gap * 4.0) × (cw - gap * 6.0) × (bh - 6.0 * gap)
 
 type CtxE = L.List UIInternal
 
@@ -363,14 +370,14 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
               DragStart e -> modify \st -> st
                 { debug     = (show aindex)
                 , dragState = Just $ DragHOC
-                    { hoc: layoutUIComponent (e.pageX × e.pageY × 200.0 × 100.0) hoc'
+                    { hoc: layoutUIComponent L.Nil (e.pageX × e.pageY × 200.0 × 100.0) hoc'
                     , pos: e.pageX × e.pageY
                     }
                 }
               DragMove e -> modify \st -> st
                 { dragState = flip map st.dragState \ds -> case ds of
                     DragHOC ds -> DragHOC $ ds
-                      { hoc = layoutUIComponent (e.pageX × e.pageY × 200.0 × 100.0) hoc'
+                      { hoc = layoutUIComponent L.Nil (e.pageX × e.pageY × 200.0 × 100.0) hoc'
                       , pos = e.pageX × e.pageY
                       }
                     _ -> ds

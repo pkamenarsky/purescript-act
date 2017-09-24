@@ -80,6 +80,9 @@ type Index = Int
 
 newtype RArgIndex = RArgIndex (List Int)
 
+instance eqRArgIndex :: Eq RArgIndex where
+  eq (RArgIndex ai) (RArgIndex ai') = ai == ai'
+
 instance showRArgIndex :: Show RArgIndex where
   show (RArgIndex index) = show index
 
@@ -100,7 +103,7 @@ zipArgRange a = A.zip a (argRange $ A.length a)
 newtype RComponent = RComponent
   { rtype    :: RType
   , external :: Array (RType × RArgIndex)
-  , internal :: Array (Array (Either RType RComponent × RArgIndex))
+  , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
   }
 
 newtype RComponent' = RComponent'
@@ -118,8 +121,8 @@ instance showRComponent :: Show RComponent where
       show' indent (RComponent rcmp) = joinWith "\n" $
         [ prefix <> "<external>: "
         , joinWith "\n" $ map (\(t × RArgIndex a) -> prefix' <> show a <> " × " <> show t) rcmp.external
-        , joinWith "\n" $ flip map rcmp.internal \args -> joinWith "\n" $
-           [ prefix <> "<internal>:"
+        , joinWith "\n" $ flip map rcmp.internal \(args × iai) -> joinWith "\n" $
+           [ prefix <> "<" <> show iai <> " internal>:"
            , joinWith "\n" $ flip map args \(x × RArgIndex a') -> case x of
                Left  t -> prefix' <> show a' <> " × " <> show t
                Right c -> prefix' <> show a' <> " × <component>:\n" <> show' (indent + 4) c
@@ -153,7 +156,7 @@ extractComponents t = extractComponents' t $ RComponent { rtype: t, external: []
           = cmp <> RComponent
               { rtype   : undefined
               , external: []
-              , internal: [ map (\(x × ai) -> x × (i <> ai)) $ zipArgRange (map extractComponents (A.fromFoldable args))]
+              , internal: [ map (\(x × ai) -> x × (i <> ai)) (zipArgRange (map extractComponents (A.fromFoldable args))) × i]
               }
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
     extractComponents' t _ = Left t
