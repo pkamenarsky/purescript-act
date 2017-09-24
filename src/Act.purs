@@ -487,13 +487,14 @@ tn = I.toNumber
 gap :: Number
 gap = 30.0
 
-subdivide :: forall eff st. Rect -> Int -> (Int -> Rect -> Component eff st) -> Component eff st
-subdivide (bx × by × bw × bh) count f = g [] $
-  flip map (0 .. (count - 1)) \i -> f i (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+subdivide :: forall eff st a. Rect -> Array a -> (Rect -> a -> Component eff st) -> Component eff st
+subdivide (bx × by × bw × bh) as f = g [] $
+  flip map (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) a
   where
-     cx i = bx + (i + 1.0) * gap + i * cw
-     cw   = (bw - (gap * (tn count + 1.0))) / tn count
-     cy   = by + gap
+     count = A.length as
+     cx i  = bx + (i + 1.0) * gap + i * cw
+     cw    = (bw - (gap * (tn count + 1.0))) / tn count
+     cy    = by + gap
 
 --------------------------------------------------------------------------------
 
@@ -502,6 +503,7 @@ typeComponent bounds@(bx × by × bw × bh) rtype
   | Just (incoming × children) <- extract rtype = g [] $ concat
       [ [ uirect bounds ]
       , inc (A.fromFoldable incoming)
+      , [ subdivide bounds (A.fromFoldable children) \r a -> uirect r ]
       ]
   where
     inc incoming = flip map (indexedRange incoming) \(i × l × t) ->

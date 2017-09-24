@@ -314,6 +314,7 @@ type1 = runType $ fun
   [ pure a
   , pure component
   , fun [ fun [ pure a ] component ] component
+  , fun [ fun [ pure location ] component ] component
   ]
   component
 
