@@ -304,7 +304,7 @@ rtype label (RFun args r) = go args
   where
     go (Cons (a × t) as)
       | a == label = Just t
-      | otherwise  = rtype label t
+      | otherwise  = rtype label t <|> go as
     go Nil = Nothing
 rtype label (RApp f xs) = rtype label f <|> rtype label xs
 rtype _ _ = Nothing
@@ -312,9 +312,10 @@ rtype _ _ = Nothing
 type1 :: RType
 type1 = runType $ fun
   [ pure a
-  , fun [ pure a ] component
+  , pure component
+  , fun [ fun [ pure a ] component ] component
   ]
   component
 
 subst1 :: Expr
-subst1 = substitute (Negative "a2" (Positive "a1" L.: Nil)) type1
+subst1 = substitute (Negative "a4" (Negative "a1" (Positive "a2" L.: Nil) L.: Nil )) type1
