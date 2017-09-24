@@ -52,8 +52,9 @@ data DragState =
     , end   :: Vec
     }
   | DragHOC
-    { hoc :: UIComponent
-    , pos :: Vec
+    { hoc  :: UIComponent
+    , rarg :: RArgIndex
+    , pos  :: Vec
     }
 
 type AppState =
@@ -135,8 +136,6 @@ label :: forall eff st. Vec -> String -> String -> Component eff st
 label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "700", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
 
 type Label = String
-
-type Substitution = RArgIndex × RArgIndex
 
 type UIExternal = 
   { conns   :: Array (Label × Vec × RArgIndex)
@@ -375,8 +374,9 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
               DragStart e -> modify \st -> st
                 { debug     = (show aindex)
                 , dragState = Just $ DragHOC
-                    { hoc: layoutUIComponent L.Nil (e.pageX × e.pageY × 200.0 × 100.0) hoc'
-                    , pos: e.pageX × e.pageY
+                    { hoc : layoutUIComponent L.Nil (e.pageX × e.pageY × 200.0 × 100.0) hoc'
+                    , pos : e.pageX × e.pageY
+                    , rarg: aindex
                     }
                 }
               DragMove e -> modify \st -> st

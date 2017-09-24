@@ -262,3 +262,15 @@ testUnify = unifyType (array person) (array a)
 
 testSpecify :: RType
 testSpecify = specifyType testUnify componentType
+
+--------------------------------------------------------------------------------
+
+type Label = String
+
+data Expr = EVar Label | EApp Expr Expr | ELam Label Expr
+
+data Substitution = Negative Int (List Substitution) | Positive Int | Placeholder
+
+substitute substs (RFun (Cons a as) r) = ELam "label" (substitute substs (RFun as r))
+substitute (Negative f args') (RFun args r) = foldl (\e _ -> ELam "label" e) (EApp (EVar "") undefined) args
+substitute _ _ = undefined
