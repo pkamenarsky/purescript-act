@@ -503,9 +503,23 @@ typeComponent bounds@(bx × by × bw × bh) rtype
   | Just (incoming × children) <- extract rtype = g [] $ concat
       [ [ uirect bounds ]
       , inc (A.fromFoldable incoming)
-      , [ subdivide bounds (A.fromFoldable children) \r a -> uirect r ]
+      , [ subdivide bounds (A.fromFoldable children) child ]
       ]
   where
+    inc :: Array (Label × RType) -> Array (Component eff st)
     inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
       uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
+
+    ext :: Vec -> Array (Label × RType) -> Array (Component eff st)
+    ext (ox × oy) external = flip map (indexedRange external) \(i × l × t) ->
+      uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+
+    child :: Rect -> Label × RType -> Component eff st
+    child bounds@(ix × iy × _ × _) (l × (RFun args (RConst (Const "Component"))))
+      = g [] $ concat
+        [ [ uirect bounds ]
+        , ext (ix × (iy + gap)) (A.fromFoldable args)
+        ]
+    child _ _ = g [] []
+
   | otherwise = g [] []
