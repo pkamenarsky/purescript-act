@@ -13,11 +13,11 @@ import Data.Tuple.Nested
 import Data.Traversable
 import Unsafe.Coerce
 import Data.Generic
+import Undefined
+import Trace
 import Data.Array as A
 import Data.List as L
 import Data.Map as M
-import Undefined
-import Trace
 
 infixr 6 Tuple as ×
 infixr 6 type Tuple as ×
@@ -78,15 +78,21 @@ type Ctx = M.Map Var Const
 
 type Index = Int
 
-newtype RArgIndex = RArgIndex Int
+newtype RArgIndex = RArgIndex (List Int)
 
 instance showRArgIndex :: Show RArgIndex where
   show (RArgIndex index) = show index
 
+instance semigroupRArgIndex :: Semigroup RArgIndex where
+  append (RArgIndex ai) (RArgIndex ai') = RArgIndex (ai <> ai')
+
+instance monoidRArgIndex :: Monoid RArgIndex where
+  mempty = RArgIndex Nil
+
 derive instance genericRArgIndex :: Generic RArgIndex
 
 argRange :: Int -> Array RArgIndex
-argRange x = map RArgIndex $ A.range 0 (x - 1)
+argRange x = map (RArgIndex <<< L.singleton) $ A.range 0 (x - 1)
 
 zipArgRange :: forall a. Array a -> Array (a × RArgIndex)
 zipArgRange a = A.zip a (argRange $ A.length a)
@@ -94,7 +100,7 @@ zipArgRange a = A.zip a (argRange $ A.length a)
 newtype RComponent = RComponent
   { rtype    :: RType
   , external :: Array (RType × RArgIndex)
-  , internal :: Array (Array (Either RType RComponent × RArgIndex) × RArgIndex)
+  , internal :: Array (Array (Either RType RComponent × RArgIndex))
   }
 
 newtype RComponent' = RComponent'
@@ -105,29 +111,6 @@ newtype RComponent' = RComponent'
 extractComponents'' :: RType -> Either RType RComponent'
 extractComponents'' = undefined
 
-extractComponents' :: RType -> Either RType RComponent
-extractComponents' t = extractComponents'' t $ RComponent { rtype: t, external: [], internal: [] }
-  where
-    extractComponents'' :: RType -> RComponent -> Either RType RComponent
-    extractComponents'' (RConst (Const "Component")) cmp' = Right cmp'
-    extractComponents'' (RFun args (RConst (Const "Component"))) cmp'
-      = Right $ foldr extractArg cmp' (A.zip (A.fromFoldable args) (argRange $ L.length args))
-      where
-        extractArg :: RType × RArgIndex -> RComponent -> RComponent
-        extractArg (t@(RConst _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
-        extractArg (t@(RVar   _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
-        extractArg (t@(RRecord _) × i) cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
-        extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
-        extractArg (t@(RFun args (RConst (Const "Component"))) × i) cmp
-          = cmp <> RComponent
-            { rtype   : undefined
-            , external: []
-            , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
-            }
-        extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
-    extractComponents'' t _ = Left t
-
-
 instance showRComponent :: Show RComponent where
   show = show' 0
     where
@@ -135,8 +118,8 @@ instance showRComponent :: Show RComponent where
       show' indent (RComponent rcmp) = joinWith "\n" $
         [ prefix <> "<external>: "
         , joinWith "\n" $ map (\(t × RArgIndex a) -> prefix' <> show a <> " × " <> show t) rcmp.external
-        , joinWith "\n" $ flip map rcmp.internal \(args × RArgIndex a) -> joinWith "\n" $
-           [ prefix <> "<" <> show a <> " × internal>:"
+        , joinWith "\n" $ flip map rcmp.internal \args -> joinWith "\n" $
+           [ prefix <> "<internal>:"
            , joinWith "\n" $ flip map args \(x × RArgIndex a') -> case x of
                Left  t -> prefix' <> show a' <> " × " <> show t
                Right c -> prefix' <> show a' <> " × <component>:\n" <> show' (indent + 4) c
@@ -168,10 +151,10 @@ extractComponents t = extractComponents' t $ RComponent { rtype: t, external: []
         extractArg (t@(RApp _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
         extractArg (t@(RFun args (RConst (Const "Component"))) × i) cmp
           = cmp <> RComponent
-            { rtype   : undefined
-            , external: []
-            , internal: [(zipArgRange $ map extractComponents (A.fromFoldable args)) × i]
-            }
+              { rtype   : undefined
+              , external: []
+              , internal: [ map (\(x × ai) -> x × (i <> ai)) $ zipArgRange (map extractComponents (A.fromFoldable args))]
+              }
         extractArg (t@(RFun _ _) × i)  cmp = cmp <> RComponent { rtype: undefined, external: [t × i], internal: [] }
     extractComponents' t _ = Left t
 
@@ -197,13 +180,13 @@ specifyType tr@(RSpecify v c) (RApp f x)  = RApp (specifyType tr f) (specifyType
 specifyType tr@(RSpecify v c) (RFun as r) = RFun (map (specifyType tr) as) (specifyType tr r)
 specifyType _ t = t
 
-getType :: List RArgIndex -> RType -> RType
+getType :: RArgIndex -> RType -> RType
 getType as r | trace_ (as × r) false = undefined
-getType (Cons (RArgIndex 0) as) (RFun (Cons t _) _) = getType as t
-getType (Cons (RArgIndex 0) as) t = getType as t
-getType (Cons (RArgIndex i) as) (RFun (Cons f fs) r)
-  = getType (Cons (RArgIndex (i - 1)) as) (RFun fs r)
-getType Nil t = t
+getType (RArgIndex (Cons 0 as)) (RFun (Cons t _) _) = getType (RArgIndex as) t
+getType (RArgIndex (Cons 0 as)) t = getType (RArgIndex as) t
+getType (RArgIndex (Cons i as)) (RFun (Cons f fs) r)
+  = getType (RArgIndex (Cons (i - 1) as)) (RFun fs r)
+getType (RArgIndex Nil) t = t
 getType _ _ = undefined
 
 --------------------------------------------------------------------------------
