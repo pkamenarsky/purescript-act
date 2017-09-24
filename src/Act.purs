@@ -481,10 +481,21 @@ uicircle (x' × y') label' = g [] $
     uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
     uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
 
---------------------------------------------------------------------------------
-
 tn :: Int -> Number
 tn = I.toNumber
+
+gap :: Number
+gap = 30.0
+
+subdivide :: forall eff st. Rect -> Int -> (Int -> Rect -> Component eff st) -> Component eff st
+subdivide (bx × by × bw × bh) count f = g [] $
+  flip map (0 .. (count - 1)) \i -> f i (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+  where
+     cx i = bx + (i + 1.0) * gap + i * cw
+     cw   = (bw - (gap * (tn count + 1.0))) / tn count
+     cy   = by + gap
+
+--------------------------------------------------------------------------------
 
 typeComponent :: forall eff st. Rect -> RType -> Component eff st
 typeComponent bounds@(bx × by × bw × bh) rtype
@@ -493,8 +504,6 @@ typeComponent bounds@(bx × by × bw × bh) rtype
       , inc (A.fromFoldable incoming)
       ]
   where
-    gap = 30.0
-
     inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
       uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
   | otherwise = g [] []
