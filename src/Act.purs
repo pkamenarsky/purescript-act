@@ -143,7 +143,6 @@ type UIExternal =
 type UIInternal = 
   { outer     :: Rect
   , inner     :: Rect
-  , arg       :: RArgIndex
   , conns     :: Array (Label × Vec × Either RType RComponent × RArgIndex)
   , component :: Maybe UIComponent
   }
@@ -305,11 +304,10 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
       Left  t -> show t × (ox × (oy + I.toNumber index * gap)) × Left t × aindex
       Right t -> "HOC" × (ox × (oy + I.toNumber index * gap)) × Right t × aindex
 
-    internal :: Int × Array (Either RType RComponent × RArgIndex) × RArgIndex -> UIInternal
-    internal (index × args × aindex) =
+    internal :: Int × Array (Either RType RComponent × RArgIndex) -> UIInternal
+    internal (index × args) =
       { outer    : cx × (by + gap) × cw × (bh - 2.0 * gap)
       , inner    : (cx + gap * 5.0) × (by + gap * 4.0) × (cw - gap * 6.0) × (bh - 6.0 * gap)
-      , arg      : aindex
       , conns    : map (connI ((cx + gap) × (cy + gap))) (indexedRange args)
       , component: Nothing
       }
@@ -351,19 +349,19 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
                []
              ]
-      <> map (connI "start" uiint.arg) uiint.conns
+      <> map (connI "start") uiint.conns
       where
         ox × oy × ow × oh = uiint.outer
         ix × iy × iw × ih = uiint.inner
 
-    connI :: String -> RArgIndex -> Label × Vec × Either RType RComponent × RArgIndex -> Component eff AppState
-    connI align aindex' (name × (x × y) × t × aindex) = g [] $
+    connI :: String -> Label × Vec × Either RType RComponent × RArgIndex -> Component eff AppState
+    connI align (name × (x × y) × t × aindex) = g [] $
       [ circle
         [ case t of
             Left _ -> onMouseDrag \ds -> pure unit
             Right hoc' -> onMouseDrag \ds -> case ds of
               DragStart e -> modify \st -> st
-                { debug     = (show (map (_.arg) ctxE × aindex' × aindex))
+                { debug     = (show aindex)
                 , dragState = Just $ DragHOC
                     { hoc: layoutUIComponent (e.pageX × e.pageY × 200.0 × 100.0) hoc'
                     , pos: e.pageX × e.pageY
@@ -409,7 +407,7 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
       [ circle
         [ onMouseDrag \ds -> case ds of
             DragStart e -> modify \st -> st
-              { debug     = (show (map (_.arg) ctxE × aindex' × aindex))
+              { debug     = (show (aindex' × aindex))
               , dragState = Just $ DragConn
                   { start: e.pageX × e.pageY
                   , end  : e.pageX × e.pageY
@@ -423,18 +421,18 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                   _ -> ds
               }
             DragEnd  e -> modify \st -> st
-                { debug = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
-                    Just (a0 × a1) -> let
-                      t = getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType
-                      c = getType (L.Cons aindex L.Nil) $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
+                { debug = case firstJustL ctxE (\uiint -> snapToInternal (e.pageX × e.pageY) uiint) of
+                    Just ai -> let
+                      t = getType ai componentType
+                      c = getType aindex $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
                       tr = unifyType c t
                       t' = specifyType tr componentType
                       in show t'
                     Nothing        -> "None"
-                , component = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
-                    Just (a0 × a1) -> let
-                      t = getType (L.Cons a0 (L.Cons a1 L.Nil)) componentType
-                      c = getType (L.Cons aindex L.Nil) $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
+                , component = case firstJustL ctxE (\uiint -> snapToInternal (e.pageX × e.pageY) uiint) of
+                    Just ai -> let
+                      t = getType ai componentType
+                      c = getType aindex $ (\(RComponent rcmp) -> rcmp.rtype) uicmp.component
                       tr = unifyType c t
                       t' = specifyType tr componentType
                       in mkCmp t'
