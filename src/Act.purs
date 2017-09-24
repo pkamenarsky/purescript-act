@@ -45,10 +45,15 @@ import Prelude hiding (div)
 
 --------------------------------------------------------------------------------
 
-type DragState =
-  { start :: Vec
-  , end   :: Vec
-  }
+data DragState =
+  DragConn
+    { start :: Vec
+    , end   :: Vec
+    }
+  | DragHOC
+    { hoc :: UIComponent
+    , pos :: Vec
+    }
 
 type AppState =
   { debug     :: String
@@ -94,7 +99,8 @@ ui = state \st -> div
    $ [ uicomponent L.Nil st.component
      ]
   <> case st.dragState of
-       Just ds -> [ line ds.start ds.end ]
+       Just (DragConn ds) -> [ line ds.start ds.end ]
+       Just (DragHOC hoc) -> [ uicomponent L.Nil hoc.hoc ]
        Nothing -> []
  , state \st -> text st.debug 
  ]
@@ -130,7 +136,7 @@ type UIInternal =
   { outer     :: Rect
   , inner     :: Rect
   , arg       :: RArgIndex
-  , conns     :: Array (Label × Vec × RArgIndex)
+  , conns     :: Array (Label × Vec × Either RType RComponent × RArgIndex)
   , component :: Maybe UIComponent
   }
 
@@ -278,10 +284,10 @@ layoutUIComponent bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = UICompon
     connE :: Vec -> Int × RType × RArgIndex -> Label × Vec × RArgIndex
     connE (ox × oy) (index × t × aindex) = show t × (ox × (oy + gap + I.toNumber index * gap)) × aindex
 
-    connI :: Vec -> Int × Either RType RComponent × RArgIndex -> Label × Vec × RArgIndex
+    connI :: Vec -> Int × Either RType RComponent × RArgIndex -> Label × Vec × Either RType RComponent × RArgIndex
     connI (ox × oy) (index × t × aindex) = case t of
-      Left  t -> show t × (ox × (oy + I.toNumber index * gap)) × aindex
-      Right t -> "HOC" × (ox × (oy + I.toNumber index * gap)) × aindex
+      Left  t -> show t × (ox × (oy + I.toNumber index * gap)) × Left t × aindex
+      Right t -> "HOC" × (ox × (oy + I.toNumber index * gap)) × Right t × aindex
 
     internal :: Int × Array (Either RType RComponent × RArgIndex) × RArgIndex -> UIInternal
     internal (index × args × aindex) =
@@ -300,7 +306,7 @@ type CtxE = L.List UIInternal
 snapToInternal :: Vec -> UIInternal -> Maybe RArgIndex
 snapToInternal v uiint = goC (L.fromFoldable uiint.conns)
   where
-     goC (L.Cons (l × v' × ai) ts)
+     goC (L.Cons (l × v' × _ × ai) ts)
        | inradius 10.0 v v' = Just ai
        | otherwise          = goC ts
      goC L.Nil = Nothing
@@ -329,10 +335,45 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
                [ x (px ix), y (px iy), width (px iw), height (px ih), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ]
                []
              ]
-      <> map (conn "start" (Just uiint.arg) Nothing) uiint.conns
+      <> map (connI "start" uiint.arg) uiint.conns
       where
         ox × oy × ow × oh = uiint.outer
         ix × iy × iw × ih = uiint.inner
+
+    connI :: String -> RArgIndex -> Label × Vec × Either RType RComponent × RArgIndex -> Component eff AppState
+    connI align aindex' (name × (x × y) × t × aindex) = g [] $
+      [ circle
+        [ case t of
+            Left _ -> onMouseDrag \ds -> pure unit
+            Right hoc' -> onMouseDrag \ds -> case ds of
+              DragStart e -> modify \st -> st
+                { debug     = (show (map (_.arg) ctxE × aindex' × aindex))
+                , dragState = Just $ DragHOC
+                    { hoc: layoutUIComponent (e.pageX × e.pageY × 200.0 × 100.0) hoc'
+                    , pos: e.pageX × e.pageY
+                    }
+                }
+              DragMove e -> modify \st -> st
+                { dragState = flip map st.dragState \ds -> case ds of
+                    DragHOC ds -> DragHOC $ ds
+                      { hoc = layoutUIComponent (e.pageX × e.pageY × 200.0 × 100.0) hoc'
+                      , pos = e.pageX × e.pageY
+                      }
+                    _ -> ds
+                }
+              DragEnd  e -> pure unit
+        , cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0)
+        ]
+        []
+      , label (x' + offset align × y' + 4.0) align name
+      ]
+      where
+        x' = x - 0.0
+        y' = y + 0.0
+
+        offset "start" = 20.0
+        offset "end"   = -20.0
+        offset _       = 0.0
 
     conn :: String -> Maybe RArgIndex -> Maybe Rect -> Label × Vec × RArgIndex -> Component eff AppState
     conn align aindex' bounds (name × (x × y) × aindex) = g [] $
@@ -340,15 +381,17 @@ uicomponent ctxE (UIComponent uicmp) = g [ ] $
         [ onMouseDrag \ds -> case ds of
             DragStart e -> modify \st -> st
               { debug     = (show (map (_.arg) ctxE × aindex' × aindex))
-              , dragState = Just
+              , dragState = Just $ DragConn
                   { start: e.pageX × e.pageY
                   , end  : e.pageX × e.pageY
                   }
               }
             DragMove e -> modify \st -> st
-              { dragState = flip map st.dragState \ds -> ds
-                  { end = e.pageX × e.pageY
-                  }
+              { dragState = flip map st.dragState \ds -> case ds of
+                  DragConn ds -> DragConn $ ds
+                    { end = e.pageX × e.pageY
+                    }
+                  _ -> ds
               }
             DragEnd  e -> modify \st -> st
                 { debug = case firstJustL ctxE (\uiint -> map (uiint.arg × _) $ snapToInternal (e.pageX × e.pageY) uiint) of
