@@ -271,21 +271,33 @@ componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] compone
 
 type Label = String
 
-data Expr = EVar Label | EApp Expr Expr | ELam Label Expr | EPlaceholder
+data Expr = EVar Label
+          | EApp Expr Expr
+          | ELam Label Expr
+          | EPlaceholder
+
+instance showExpr :: Show Expr where
+  show (EVar label) = label
+  show (EApp f x)   = show f <> " " <> show x
+  show (ELam a e)   = "(λ" <> a <> ". " <> show e <> ")"
+  show EPlaceholder = "_"
 
 data Substitution = Negative Label (List Substitution) | Positive Label | Placeholder
 
 substitute :: Substitution -> RType -> Expr
 
-substitute (Positive x) _ = EVar x
-substitute Placeholder  _ = EPlaceholder
+substitute (Positive x) _                  = EVar x
+substitute Placeholder  _                  = EPlaceholder
+substitute (Negative f xs) t@(RFun args r) = foldr (\(l × t) e -> ELam l e) (negative f xs t) args
+substitute (Negative f _) _                = undefined
 
-substitute (Negative f (Cons Placeholder xs)) t  = EPlaceholder
-substitute (Negative f (Cons (Positive x) xs)) t = EApp (substitute (Negative f xs) t) (EVar x) 
-substitute (Negative f (Cons subst xs)) t
-  | Just t' <- rtype f t                         = EApp (substitute (Negative f xs) t) (substitute subst t')
-  | otherwise                                    = undefined
-substitute (Negative f Nil) _                    = EVar f
+negative :: Label -> List Substitution -> RType -> Expr
+negative f (Cons Placeholder xs) t  = EApp (negative f xs t) EPlaceholder
+negative f (Cons (Positive x) xs) t = EApp (negative f xs t) (EVar x) 
+negative f (Cons subst xs) t
+  | Just t' <- rtype f t            = EApp (negative f xs t) (substitute subst t')
+  | otherwise                       = undefined
+negative f Nil _                    = EVar f
 
 rtype :: Label -> RType -> Maybe RType
 rtype label (RFun args r) = go args
@@ -296,3 +308,13 @@ rtype label (RFun args r) = go args
     go Nil = Nothing
 rtype label (RApp f xs) = rtype label f <|> rtype label xs
 rtype _ _ = Nothing
+
+type1 :: RType
+type1 = runType $ fun
+  [ pure a
+  , fun [ pure a ] component
+  ]
+  component
+
+subst1 :: Expr
+subst1 = substitute (Negative "a2" (Positive "a1" L.: Nil)) type1
