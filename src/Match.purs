@@ -267,10 +267,19 @@ testSpecify = specifyType testUnify componentType
 
 type Label = String
 
-data Expr = EVar Label | EApp Expr Expr | ELam Label Expr
+data Expr = EVar Label | EApp Expr Expr | ELam Label Expr | EPlaceholder
 
-data Substitution = Negative Int (List Substitution) | Positive Int | Placeholder
+data Substitution = Negative Label (List Substitution) | Positive Label | Placeholder
 
-substitute substs (RFun (Cons a as) r) = ELam "label" (substitute substs (RFun as r))
-substitute (Negative f args') (RFun args r) = foldl (\e _ -> ELam "label" e) (EApp (EVar "") undefined) args
-substitute _ _ = undefined
+substitute :: Substitution -> RType -> Expr
+
+substitute (Positive x) _ = EVar x
+substitute Placeholder  _ = EPlaceholder
+
+substitute (Negative f (Cons Placeholder xs)) t  = EPlaceholder
+substitute (Negative f (Cons (Positive x) xs)) t = EApp (substitute (Negative f xs) t) (EVar x) 
+substitute (Negative f (Cons subst xs)) t        = EApp (substitute (Negative f xs) t) (substitute subst (rtype f t))
+substitute (Negative f Nil) _                    = EVar f
+
+rtype :: Label -> RType -> RType
+rtype = undefined
