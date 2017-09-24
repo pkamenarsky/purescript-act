@@ -319,3 +319,8 @@ type1 = runType $ fun
 
 subst1 :: Expr
 subst1 = substitute (Negative "a4" (Negative "a1" (Positive "a2" L.: Nil) L.: Nil )) type1
+
+type C = Int
+
+t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
+t1 = \a2 a3 a4 -> a4 (\a1 -> a2 a1)
