@@ -282,18 +282,18 @@ instance showExpr :: Show Expr where
   show (ELam a e)   = "(λ" <> a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
-data Substitution = Negative Label (List Substitution) | Positive Label | Placeholder
+data Substitution = SApp Label (List Substitution) | SArg (Either Int Label) | Placeholder
 
 substitute :: Substitution -> RType -> Expr
 
-substitute (Positive x) _                  = EVar x
-substitute Placeholder  _                  = EPlaceholder
-substitute (Negative f xs) t@(RFun args r) = foldr (\(l × t) e -> ELam l e) (negative f xs t) args
-substitute (Negative f _) _                = undefined
+substitute (SArg x) _                  = undefined -- EVar x
+substitute Placeholder  _              = EPlaceholder
+substitute (SApp f xs) t@(RFun args r) = undefined -- foldr (\(l × t) e -> ELam l e) (negative f xs t) args
+substitute (SApp f _) _                = undefined
 
 negative :: Label -> List Substitution -> RType -> Expr
 negative f (Cons Placeholder xs) t  = EApp (negative f xs t) EPlaceholder
-negative f (Cons (Positive x) xs) t = EApp (negative f xs t) (EVar x) 
+negative f (Cons (SArg x) xs) t     = undefined -- EApp (negative f xs t) (EVar x) 
 negative f (Cons subst xs) t
   | Just t' <- rtype f t            = EApp (negative f xs t) (substitute subst t')
   | otherwise                       = undefined
@@ -318,9 +318,9 @@ type1 = runType $ fun
   component
 
 subst1 :: Expr
-subst1 = substitute (Negative "a4" (Negative "a1" (Positive "a2" L.: Nil) L.: Nil )) type1
+subst1 = substitute (SApp "a4" (SArg (Right "a2") L.: SArg (Left 0) L.: Nil)) type1
 
 type C = Int
 
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
-t1 = \a2 a3 a4 -> a4 (\a1 -> a2 a1)
+t1 = \a2 a3 a4 -> a4 (\x -> a2 x)
