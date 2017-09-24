@@ -314,8 +314,13 @@ layoutUIComponent substs bounds@(bx × by × bw × bh) cmp@(RComponent rcmp) = U
       , inner    : inner
       , conns    : map (connI ((cx + gap) × (cy + gap))) (indexedRange args)
       , component: firstJustL substs \(v × s) -> if s == iai
-          then Just $ layoutUIComponent L.Nil inner undefined
-          else undefined
+          then let
+            vt  = getType v rcmp.rtype
+            rch = extractComponents vt
+            in case rch of
+              Left _    -> Nothing
+              Right rch -> Just $ layoutUIComponent L.Nil inner rch
+          else Nothing
       }
       where
         index' = I.toNumber index
