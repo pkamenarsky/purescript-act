@@ -7,6 +7,7 @@ import Control.Monad.Free
 import Data.Argonaut.Core
 import Data.Array
 import Data.Lens
+import Data.List as L
 import Data.Map
 import Data.Maybe
 import Data.Monoid
@@ -35,7 +36,12 @@ foreign import elementDataForXY :: forall eff. String -> Number -> Number -> Eff
 lensAt :: forall a. Int -> Lens' (Array a) a
 lensAt index = lens (\arr -> unsafePartial $ arr `unsafeIndex` index) (unsafeUpdateAt index)
 
+lensAtL :: forall a. Int -> Lens' (L.List a) a
+lensAtL index = lens (\arr -> unsafePartial $ fromJust $ arr `L.index` index) (unsafeUpdateAtL index)
+
 unsafeUpdateAt index arr a = unsafePartial $ fromJust $ updateAt index a arr
+
+unsafeUpdateAtL index arr a = unsafePartial $ fromJust $ L.updateAt index a arr
 
 unitLens :: forall a. Lens' a Unit
 unitLens = lens (const unit) (\s _ -> s)

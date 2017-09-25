@@ -506,12 +506,12 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a. Rect -> (Rect -> Rect) -> Array a -> (Rect -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
-subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(a × r) -> f r a) rects)
+subdivide' :: forall eff st a. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
+subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(i × a × r) -> f r i a) rects)
   where
-     rects   = flip map (indexedRange as) \(i × a) -> a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+     rects   = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
 
-     snap r' = firstJust rects (\(a × r) -> if intersect (snapf r) r' then Just a else Nothing)
+     snap r' = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
 
      count = A.length as
      cx i  = bx + (i + 1.0) * gap + i * cw
@@ -550,13 +550,13 @@ typeComponent r ss t = typeComponent' t r ss t
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
     
-        child :: AppState -> Rect -> Maybe Substitution × Label × RType -> Component eff AppState
-        child st bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
+        child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> Component eff AppState
+        child st bounds@(ix × iy × _ × _) index (s × l × t@(RFun args _))
           | isHOC t = g [] $ concat
             [ [ uirect bounds ]
             , case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t'   -> [ typeComponent' tt shrunkBounds undefinde {- (substs >>> _SApp' >>> _2) -} t' ]
+                  Just t'   -> [ typeComponent' tt shrunkBounds (substs <<< ?_ <<< _SApp' <<< _2) t' ]
                   otherwise -> [ uirectDashed shrunkBounds ]
                 otherwise         -> [ uirectDashed shrunkBounds ]
             , ext st (ix × (iy + gap)) (A.fromFoldable args)
@@ -564,7 +564,7 @@ typeComponent r ss t = typeComponent' t r ss t
             where
               shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
           | otherwise = undefined
-        child _ _ _ = g [] []
+        child _ _ _ _ = g [] []
 
         -- TODO: very inefficient
         snch :: AppState -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × Component eff AppState)
