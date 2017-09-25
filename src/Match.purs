@@ -280,7 +280,9 @@ instance showExpr :: Show Expr where
   show (ELam a e)   = "(λ" <> a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
-data Substitution = SApp Label (List Substitution) | SArg Label | Placeholder
+data Substitution = SApp Label (List Substitution)
+                  | SArg Label
+                  | Placeholder
 
 substitute :: Substitution -> RType -> Expr
 
@@ -320,7 +322,7 @@ type1 = runType $ fun
 type C = Int
 
 t0 :: forall a. a -> C -> (a -> C) -> C
-t0 = \a2 a3 a4 -> a4 a2
+t0 = \a1 a2 a3 -> a3 a1
 
 r0 :: RType
 r0 = runType $ fun
@@ -331,10 +333,10 @@ r0 = runType $ fun
   component
 
 s0 :: Expr
-s0 = substitute (SApp "a4" (SArg "a2" L.: Nil)) r0
+s0 = substitute (SApp "a3" (SArg "a1" L.: Nil)) r0
 
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
-t1 = \a3 a4 a5 -> a5 (\a2 -> (\a1 -> a3 a1) a2)
+t1 = \a3 a4 a5 -> a5 (\a2 -> a3 a2)
 
 r1 :: RType
 r1 = runType $ fun
@@ -345,7 +347,7 @@ r1 = runType $ fun
   component
 
 s1 :: Expr
-s1 = substitute (SApp "a4" (SArg "a2" L.: Nil)) r1
+s1 = substitute (SApp "a5" ((SApp "a3" (SArg "a2" L.: Nil)) L.: Nil)) r1
 
 t2 :: forall a. a -> C -> (((a -> C) -> (a -> C) -> C) -> C) -> C
 t2 = \a2 a3 a4 -> a4 (\x y -> x a2)
