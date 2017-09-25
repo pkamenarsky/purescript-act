@@ -573,14 +573,14 @@ typeComponent st r ss t = typeComponent' t r ss t
 
         -- TODO: very inefficient
         snch :: AppState -> CmpAppState eff
-        snch st = undefined
+        snch st = snap' × cmp
           where
             snap × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
-            -- snap' :: Rect -> Maybe (Label -> AppState -> AppState)
-            -- snap' bounds'
-            --   | intersect bounds shrunkBounds = Just (\l st -> set substs (L.Cons (SApp l L.Nil) L.Nil) st)
-            --   | otherwise = Nothing
+            snap' :: Rect -> Maybe (Label -> AppState -> AppState)
+            snap' bounds' = case snap bounds' of
+              Just _  -> Just (\l st -> set substs (L.Cons (SApp l L.Nil) L.Nil) st)
+              Nothing -> Nothing
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext st (ox × oy) external = map ext' (indexedRange external)
