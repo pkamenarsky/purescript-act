@@ -14,7 +14,7 @@ import Data.Generic
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
-import Data.Map
+import Data.Map as M
 import Data.Lens.Index
 import Data.Tuple
 import Type.Proxy
@@ -485,12 +485,15 @@ data UILabel = UILabelLeft String | UILabelRight String
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
 uicircle (x' × y') label' = g [] $
-  [ circle [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
+  [ circle [ cx (px (x' + offset label')), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
   , uilabel label'
   ]
   where
-    uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
-    uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
+    offset (UILabelLeft _) = -60.0
+    offset (UILabelRight _) = 60.0
+
+    uilabel (UILabelLeft str)  = label (x' + 20.0 × y' + 4.0) "end" str
+    uilabel (UILabelRight str) = label (x' - 20.0 × y' + 4.0) "start" str
 
 tn :: Int -> Number
 tn = I.toNumber
@@ -538,6 +541,8 @@ zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
 type CmpAppState eff = (Rect -> Maybe (Label -> AppState -> AppState)) × Component eff AppState
+
+type Context = M.Map Label Vec
 
 typeComponent :: forall eff. AppState -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
 typeComponent st r ss t = typeComponent' t r ss t
