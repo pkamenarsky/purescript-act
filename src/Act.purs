@@ -507,17 +507,18 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
-subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(i × a × r) -> f r i a) rects)
-  where
-     rects   = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
-
-     snap r' = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
-
-     count = A.length as
-     cx i  = bx + (i + 1.0) * gap + i * cw
-     cw    = (bw - (gap * (tn count + 1.0))) / tn count
-     cy    = by + gap
+subdivide' :: forall eff st a b. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> b × Component eff st) -> ((Rect -> Maybe a) × Array b × Component eff st)
+subdivide' = undefined
+-- subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(i × a × r) -> f r i a) rects)
+--   where
+--      rects   = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+-- 
+--      snap r' = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
+-- 
+--      count = A.length as
+--      cx i  = bx + (i + 1.0) * gap + i * cw
+--      cw    = (bw - (gap * (tn count + 1.0))) / tn count
+--      cy    = by + gap
 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
@@ -555,27 +556,32 @@ typeComponent st r ss t = typeComponent' t r ss t
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
     
-        child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> Component eff AppState
+        child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> CmpAppState eff
         child st bounds@(ix × iy × _ × _) index (s × l × t@(RFun args _))
-          | isHOC t = g [] $ concat
+          | isHOC t = (×) snap' $ g [] $ concat
             [ [ uirect bounds ]
-            , case s of
-                Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t'   -> [ snd $ typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t' ]
-                  otherwise -> [ uirectDashed shrunkBounds ]
-                otherwise         -> [ uirectDashed shrunkBounds ]
+            , [ snd childCmp ]
             , ext st (ix × (iy + gap)) (A.fromFoldable args)
             ]
             where
+              childCmp = case s of
+                Just (SApp fs ss) -> case labeltype fs tt of
+                  Just t' -> typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t'
+                  Nothing -> const Nothing × uirectDashed shrunkBounds
+                _ -> const Nothing × uirectDashed shrunkBounds
+
+              snap' :: Rect -> Maybe (Label -> AppState -> AppState)
+              snap' = fst childCmp
+
               shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
           | otherwise = undefined
-        child _ _ _ _ = g [] []
+        child _ _ _ _ = const Nothing × g [] []
 
         -- TODO: very inefficient
         snch :: AppState -> CmpAppState eff
         snch st = snap' × cmp
           where
-            snap × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
+            snap × _ × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
             snap' :: Rect -> Maybe (Label -> AppState -> AppState)
             snap' bounds' = case snap bounds' of
