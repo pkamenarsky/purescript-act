@@ -498,6 +498,10 @@ subdivide (bx × by × bw × bh) as f = g [] $
 
 --------------------------------------------------------------------------------
 
+isHOC :: RType -> Boolean
+isHOC (RFun _ (RConst (Const "Component"))) = true
+isHOC _ = false
+
 typeComponent :: forall eff st. Rect -> RType -> Component eff st
 typeComponent bounds@(bx × by × bw × bh) rtype
   | Just (incoming × children) <- extract rtype = g [] $ concat
@@ -511,15 +515,18 @@ typeComponent bounds@(bx × by × bw × bh) rtype
       uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
 
     ext :: Vec -> Array (Label × RType) -> Array (Component eff st)
-    ext (ox × oy) external = flip map (indexedRange external) \(i × l × t) ->
-      uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+    ext (ox × oy) external = map ext' (indexedRange external)
+      where
+        ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
+        ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
 
     child :: Rect -> Label × RType -> Component eff st
-    child bounds@(ix × iy × _ × _) (l × (RFun args (RConst (Const "Component"))))
-      = g [] $ concat
+    child bounds@(ix × iy × _ × _) (l × t)
+      | isHOC t = g [] $ concat
         [ [ uirect bounds ]
         , ext (ix × (iy + gap)) (A.fromFoldable args)
         ]
+      | otherwise = undefined
     child _ _ = g [] []
 
   | otherwise = g [] []
