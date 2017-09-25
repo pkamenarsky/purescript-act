@@ -288,7 +288,7 @@ substitute s t@(RFun args _) = ELam (map fst args) (substitute' t s t)
   where
     substitute' :: RType -> Substitution -> RType -> Expr
     substitute' tt (SApp s ss) (RFun args r)
-      | Just t <- rtype s tt = case t × ss of
+      | Just t <- labeltype s tt = case t × ss of
           (RFun (Cons a Nil) _ × Cons (SArg b) Nil) -> EApp (EVar s) (EVar b L.: Nil)
           (RFun args' _ × ss) -> EApp (EVar s) (map (\s' -> ELam (map fst args') (substitute' tt s' t)) ss)
           _ -> undefined
@@ -299,15 +299,15 @@ substitute _ _ = undefined
 
 --------------------------------------------------------------------------------
 
-rtype :: Label -> RType -> Maybe RType
-rtype label (RFun args r) = go args
+labeltype :: Label -> RType -> Maybe RType
+labeltype label (RFun args r) = go args
   where
     go (Cons (a × t) as)
       | a == label = Just t
-      | otherwise  = rtype label t <|> go as
+      | otherwise  = labeltype label t <|> go as
     go Nil = Nothing
-rtype label (RApp f xs) = rtype label f <|> rtype label xs
-rtype _ _ = Nothing
+labeltype label (RApp f xs) = labeltype label f <|> labeltype label xs
+labeltype _ _ = Nothing
 
 type1 :: RType
 type1 = runType $ fun

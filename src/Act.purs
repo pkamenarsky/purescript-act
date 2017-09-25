@@ -106,7 +106,7 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a6" L.Nil) L.Nil) type2
+       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a5" L.Nil) L.Nil) type2
      ]
   <> case st.dragState of
        Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -536,10 +536,14 @@ typeComponent bounds@(bx × by × bw × bh) substs rtype
       | isHOC t = g [] $ concat
         [ [ uirect bounds ]
         , case s of
-            Just (SApp fs ss) -> [ typeComponent (shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds) ss t ]
-            otherwise         -> [ uirectDashed $ shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds ]
+            Just (SApp fs ss) -> case labeltype fs rtype of
+              Just t'   -> [ typeComponent shrunkBounds  ss t' ]
+              otherwise -> [ uirectDashed shrunkBounds ]
+            otherwise         -> [ uirectDashed shrunkBounds ]
         , ext (ix × (iy + gap)) (A.fromFoldable args)
         ]
+        where
+          shrunkBounds = shrink ((6.0 * gap) × (3.0 * gap) × gap × gap) bounds
       | otherwise = undefined
     child _ _ = g [] []
 
