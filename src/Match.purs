@@ -324,8 +324,14 @@ subst1 = substitute (SApp "a4" (SArg (Right "a2") L.: SArg (Left 0) L.: Nil)) ty
 
 type C = Int
 
+t0 :: forall a. a -> C -> (a -> C) -> C
+t0 = \a2 a3 a4 -> a4 a2
+
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
-t1 = \a2 a3 a4 -> a4 (\x -> a2 x)
+t1 = \a2 a3 a4 -> a4 \x -> a2 x
+
+t2 :: forall a. a -> C -> (((a -> C) -> C) -> C) -> C
+t2 = \a2 a3 a4 -> a4 \x -> x a2
 
 --------------------------------------------------------------------------------
 
