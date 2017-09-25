@@ -270,14 +270,14 @@ componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] compone
 type Label = String
 
 data Expr = EVar Label
-          | EApp Expr Expr
+          | EApp Expr (List Expr)
           | ELam (List Label) Expr
           | EPlaceholder
 
 instance showExpr :: Show Expr where
   show (EVar v)     = v
-  show (EApp f x)   = show f <> " " <> show x
-  show (ELam a e)   = "(λ" <> joinWith " -> " (A.fromFoldable a) <> " -> " <> show e <> ")"
+  show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
+  show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
   show EPlaceholder = "_"
 
 data Substitution = SApp Label (List Substitution)
@@ -285,12 +285,17 @@ data Substitution = SApp Label (List Substitution)
                   | Placeholder
 
 substitute :: Substitution -> RType -> Expr
-substitute (SApp s ss) t'@(RFun args r)
-  | Just t <- rtype s t' = case t × ss of
-      (RFun (Cons a Nil) r × (Cons (SArg b) Nil)) -> EApp (EVar s) (EVar b)
-      (RFun args' _ × ss') -> EApp (EVar s) (ELam (map fst args') undefined)
-      _ -> undefined
-  | otherwise = undefined
+substitute s t@(RFun args _) = ELam (map fst args) (substitute' t s t)
+  where
+    substitute' :: RType -> Substitution -> RType -> Expr
+    substitute' tt (SApp s ss) (RFun args r)
+      | Just t <- rtype s tt = case t × ss of
+          (RFun (Cons a Nil) _ × Cons (SArg b) Nil) -> EApp (EVar s) (EVar b L.: Nil)
+          (RFun args' _ × ss) -> EApp (EVar s) (map (\s' -> ELam (map fst args') (substitute' tt s' t)) ss)
+          _ -> undefined
+      | otherwise = EVar ("undefined: " <> s <> " in " <> show tt)
+    substitute' tt (SArg a) _ = EVar a
+    substitute' tt _ _ = undefined
 substitute _ _ = undefined
 
 --------------------------------------------------------------------------------
@@ -346,7 +351,7 @@ s1 :: Expr
 s1 = substitute (SApp "a5" ((SApp "a3" (SArg "a2" L.: Nil)) L.: Nil)) r1
 
 t2 :: forall a. a -> C -> (((a -> C) -> (a -> C) -> C) -> C) -> C
-t2 = \a2 a3 a4 -> a4 (\x y -> x a2)
+t2 = \a5 a6 a7 -> a7 (\a4 a3 -> a4 a5)
 
 r2 :: RType
 r2 = runType $ fun
@@ -355,6 +360,9 @@ r2 = runType $ fun
   , fun [ fun [ fun [ pure a ] component, fun [ pure a ] component ] component  ] component
   ]
   component
+
+s2 :: Expr
+s2 = substitute (SApp "a7" ((SApp "a4" (SArg "a5" L.: Nil)) L.: Nil)) r2
 
 t3 :: forall a. a -> C -> (((a -> C) -> C) -> ((a -> C) -> C) -> C) -> C
 t3 = \a2 a3 a4 -> a4 (\x -> x a2) (\x -> a3)
