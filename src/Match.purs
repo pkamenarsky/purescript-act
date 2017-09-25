@@ -425,3 +425,16 @@ extract (RFun args (RConst (Const "Component"))) = Just (incoming args L.Nil × 
     children (L.Cons t ls) ts = children ls ts
     children L.Nil ts = ts
 extract _ = Nothing
+
+--------------------------------------------------------------------------------
+
+exprToJS :: forall eff st. Expr -> Maybe String
+exprToJS (EVar x)   = Just x
+exprToJS (ELam a e) = do
+  e' <- exprToJS e
+  pure $ "function(" <> joinWith ", " (A.fromFoldable a) <> ") { return (" <> e' <> "); }"
+exprToJS (EApp f as) = do
+  f'  <- exprToJS f
+  as' <- traverse exprToJS as
+  pure $ "(" <> f' <> ")(" <> joinWith", " (A.fromFoldable as') <> ");"
+exprToJS EPlaceholder = Nothing
