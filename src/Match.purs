@@ -249,7 +249,6 @@ componentType = runType $ fun
   ]
   component
 
-
 componentType2 :: RType
 componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] component
 
@@ -317,6 +316,13 @@ type1 = runType $ fun
   , fun [ pure a, pure location ] component
   , fun [ fun [ pure a ] component ] component
   , fun [ fun [ pure location ] component ] component
+  ]
+  component
+
+type2 :: RType
+type2 = runType $ fun
+  [ fun [ fun [ pure (array a), fun [ pure a ] component ] component
+  , fun [ pure location, pure a] component ] component
   ]
   component
 

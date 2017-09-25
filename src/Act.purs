@@ -106,7 +106,7 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) type1
+       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a6" L.Nil) L.Nil) type2
      ]
   <> case st.dragState of
        Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -470,6 +470,9 @@ firstJust as f = go (L.fromFoldable as)
 uirect :: forall eff st. Rect -> Component eff st
 uirect (bx × by × bw × bh) = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
 
+uirectDashed :: forall eff st. Rect -> Component eff st
+uirectDashed (bx × by × bw × bh) = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+
 data UILabel = UILabelLeft String | UILabelRight String
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
@@ -496,18 +499,21 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
+shrink :: Rect -> Rect -> Rect
+shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
+
 --------------------------------------------------------------------------------
 
 isHOC :: RType -> Boolean
 isHOC (RFun _ (RConst (Const "Component"))) = true
 isHOC _ = false
 
-typeComponent :: forall eff st. Rect -> RType -> Component eff st
-typeComponent bounds@(bx × by × bw × bh) rtype
+typeComponent :: forall eff st. Rect -> L.List Substitution -> RType -> Component eff st
+typeComponent bounds@(bx × by × bw × bh) substs rtype
   | Just (incoming × children) <- extract rtype = g [] $ concat
       [ [ uirect bounds ]
       , inc (A.fromFoldable incoming)
-      , [ subdivide bounds (A.fromFoldable children) child ]
+      , [ subdivide bounds (A.fromFoldable $ L.zip substs children) child ]
       ]
   where
     inc :: Array (Label × RType) -> Array (Component eff st)
@@ -520,13 +526,16 @@ typeComponent bounds@(bx × by × bw × bh) rtype
         ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
         ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
 
-    child :: Rect -> Label × RType -> Component eff st
-    child bounds@(ix × iy × _ × _) (l × t)
+    child :: Rect -> Substitution × Label × RType -> Component eff st
+    child bounds@(ix × iy × _ × _) (SApp fs ss × l × t@(RFun args _))
       | isHOC t = g [] $ concat
         [ [ uirect bounds ]
+        -- , [ uirectDashed $ shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds ]
+        , [ typeComponent (shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds) ss t ]
         , ext (ix × (iy + gap)) (A.fromFoldable args)
         ]
       | otherwise = undefined
     child _ _ = g [] []
 
   | otherwise = g [] []
+typeComponent _ _ _ = g [] []
