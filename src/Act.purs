@@ -535,7 +535,7 @@ typeComponent r ss t = typeComponent' t r ss t
       | Just (incoming × children) <- extract rtype = g [] $ concat
           [ [ uirect bounds ]
           , inc (A.fromFoldable incoming)
-          , [ childcmp ]
+          , [ snd $ snch unit ]
           ]
       where
         inc :: Array (Label × RType) -> Array (Component eff AppState)
@@ -557,8 +557,9 @@ typeComponent r ss t = typeComponent' t r ss t
               shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
           | otherwise = undefined
         child _ _ = g [] []
-    
-        snap × childcmp = subdivide' bounds (A.fromFoldable $ zipMaybe substs children) child
+
+        snch :: Unit -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × Component eff AppState)
+        snch _ = subdivide' bounds (A.fromFoldable $ zipMaybe substs children) child
     
         ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext (ox × oy) external = map ext' (indexedRange external)
@@ -567,7 +568,7 @@ typeComponent r ss t = typeComponent' t r ss t
               [ onMouseDrag \e -> case e of
                   DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ snap (meToV e × 200.0 × 100.0) }
+                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch unit)) (0.0 × 0.0 × 200.0 × 100.0) }
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
