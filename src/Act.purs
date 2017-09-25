@@ -106,7 +106,7 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a5" L.Nil) L.Nil) type2
+       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a6" ((SApp "a8" L.Nil) L.: L.Nil)) L.Nil) type2
      ]
   <> case st.dragState of
        Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -514,38 +514,41 @@ zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
 typeComponent :: forall eff st. Rect -> L.List Substitution -> RType -> Component eff st
-typeComponent bounds@(bx × by × bw × bh) substs rtype
-  | Just (incoming × children) <- extract rtype = g [] $ concat
-      [ [ uirect bounds ]
-      , inc (A.fromFoldable incoming)
-      , [ subdivide bounds (A.fromFoldable $ zipMaybe substs children) child ]
-      ]
+typeComponent r ss t = typeComponent' t r ss t
   where
-    inc :: Array (Label × RType) -> Array (Component eff st)
-    inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
-      uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
-
-    ext :: Vec -> Array (Label × RType) -> Array (Component eff st)
-    ext (ox × oy) external = map ext' (indexedRange external)
+    typeComponent' :: RType -> Rect -> L.List Substitution -> RType -> Component eff st
+    typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
+      | Just (incoming × children) <- extract rtype = g [] $ concat
+          [ [ uirect bounds ]
+          , inc (A.fromFoldable incoming)
+          , [ subdivide bounds (A.fromFoldable $ zipMaybe substs children) child ]
+          ]
       where
-        ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
-        ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
-
-    child :: Rect -> Maybe Substitution × Label × RType -> Component eff st
-    child bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
-      | isHOC t = g [] $ concat
-        [ [ uirect bounds ]
-        , case s of
-            Just (SApp fs ss) -> case labeltype fs rtype of
-              Just t'   -> [ typeComponent shrunkBounds  ss t' ]
-              otherwise -> [ uirectDashed shrunkBounds ]
-            otherwise         -> [ uirectDashed shrunkBounds ]
-        , ext (ix × (iy + gap)) (A.fromFoldable args)
-        ]
-        where
-          shrunkBounds = shrink ((6.0 * gap) × (3.0 * gap) × gap × gap) bounds
-      | otherwise = undefined
-    child _ _ = g [] []
-
-  | otherwise = g [] []
-typeComponent _ _ _ = g [] []
+        inc :: Array (Label × RType) -> Array (Component eff st)
+        inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
+          uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
+    
+        ext :: Vec -> Array (Label × RType) -> Array (Component eff st)
+        ext (ox × oy) external = map ext' (indexedRange external)
+          where
+            ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
+            ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+    
+        child :: Rect -> Maybe Substitution × Label × RType -> Component eff st
+        child bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
+          | isHOC t = g [] $ concat
+            [ [ uirect bounds ]
+            , case s of
+                Just (SApp fs ss) -> case labeltype fs tt of
+                  Just t'   -> [ typeComponent' tt shrunkBounds ss t' ]
+                  otherwise -> [ uirectDashed shrunkBounds ]
+                otherwise         -> [ uirectDashed shrunkBounds ]
+            , ext (ix × (iy + gap)) (A.fromFoldable args)
+            ]
+            where
+              shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
+          | otherwise = undefined
+        child _ _ = g [] []
+    
+      | otherwise = g [] []
+    typeComponent _ _ _ = g [] []
