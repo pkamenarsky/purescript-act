@@ -114,11 +114,11 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       typeComponent (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
+       snd $ typeComponent st (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ typeComponent ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snd $ typeComponent st ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text st.debug ]
  ]
@@ -536,39 +536,44 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
-typeComponent :: forall eff. Rect -> Lens' AppState (L.List Substitution) -> RType -> Component eff AppState
-typeComponent r ss t = typeComponent' t r ss t
+type CmpAppState eff = (Rect -> Maybe (AppState -> AppState)) × Component eff AppState
+
+typeComponent :: forall eff. AppState -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
+typeComponent st r ss t = typeComponent' t r ss t
   where
-    typeComponent' :: RType -> Rect -> Lens' AppState (L.List Substitution) -> RType -> Component eff AppState
+    typeComponent' :: RType -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
     typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
-      | Just (incoming × children) <- extract rtype = state \st -> g [] $ concat
+      | Just (incoming × children) <- extract rtype = (×) snap $ g [] $ concat
           [ [ uirect bounds ]
           , inc (A.fromFoldable incoming)
           , [ snd $ snch st ]
           ]
       where
+        snap = undefined
+
         inc :: Array (Label × RType) -> Array (Component eff AppState)
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
     
-        child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> Component eff AppState
+        child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> CmpAppState eff
         child st bounds@(ix × iy × _ × _) index (s × l × t@(RFun args _))
-          | isHOC t = g [] $ concat
+          | isHOC t = (×) snap $ g [] $ concat
             [ [ uirect bounds ]
             , case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t'   -> [ typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t' ]
+                  Just t'   -> [ snd $ typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t' ]
                   otherwise -> [ uirectDashed shrunkBounds ]
                 otherwise         -> [ uirectDashed shrunkBounds ]
             , ext st (ix × (iy + gap)) (A.fromFoldable args)
             ]
             where
+              snap = undefined
               shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
           | otherwise = undefined
-        child _ _ _ _ = g [] []
+        child _ _ _ _ = const Nothing × g [] []
 
         -- TODO: very inefficient
-        snch :: AppState -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × Component eff AppState)
+        snch :: AppState -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × CmpAppState eff)
         snch st = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
@@ -588,5 +593,5 @@ typeComponent r ss t = typeComponent' t r ss t
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
-      | otherwise = g [] []
-    typeComponent _ _ _ = g [] []
+      | otherwise = const Nothing × g [] []
+    typeComponent _ _ _ = const Nothing × g [] []
