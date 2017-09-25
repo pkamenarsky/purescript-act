@@ -51,16 +51,15 @@ data DragState =
     { start :: Vec
     , end   :: Vec
     }
-  -- | DragHOC
-  --   { hoc  :: UIComponent
-  --   , rarg :: RArgIndex
-  --   , pos  :: Vec
-  --   }
+  | DragHOC
+    { hoc   :: RType
+    , label :: Label
+    , pos   :: Vec
+    }
 
 type AppState =
   { debug     :: String
   , dragState :: Maybe DragState
-  -- , component :: UIComponent
   , rtype     :: RType
   }
 
@@ -109,9 +108,9 @@ ui = state \st -> div
        typeComponent (200.5 × 100.5 × 1000.0 × 400.0) (L.Cons (SApp "a6" ((SApp "a8" L.Nil) L.: L.Nil)) L.Nil) type2
      ]
   <> case st.dragState of
-       Just (DragConn ds) -> [ line ds.start ds.end ]
-       -- Just (DragHOC hoc) -> [ {- uicomponent L.Nil hoc.hoc -} ]
-       Nothing -> []
+       -- Just (DragConn ds) -> [ line ds.start ds.end ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ typeComponent (px × py × 200.0 × 100.0) L.Nil hoc ]
+       _ -> []
  , state \st -> code [] [ text st.debug ]
  ]
 
@@ -502,6 +501,9 @@ subdivide (bx × by × bw × bh) as f = g [] $
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
+meToV :: R.MouseEvent -> Vec
+meToV { pageX, pageY } = pageX × pageY
+
 --------------------------------------------------------------------------------
 
 isHOC :: RType -> Boolean
@@ -513,10 +515,10 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
-typeComponent :: forall eff st. Rect -> L.List Substitution -> RType -> Component eff st
+typeComponent :: forall eff. Rect -> L.List Substitution -> RType -> Component eff AppState
 typeComponent r ss t = typeComponent' t r ss t
   where
-    typeComponent' :: RType -> Rect -> L.List Substitution -> RType -> Component eff st
+    typeComponent' :: RType -> Rect -> L.List Substitution -> RType -> Component eff AppState
     typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
       | Just (incoming × children) <- extract rtype = g [] $ concat
           [ [ uirect bounds ]
@@ -524,17 +526,23 @@ typeComponent r ss t = typeComponent' t r ss t
           , [ subdivide bounds (A.fromFoldable $ zipMaybe substs children) child ]
           ]
       where
-        inc :: Array (Label × RType) -> Array (Component eff st)
+        inc :: Array (Label × RType) -> Array (Component eff AppState)
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
     
-        ext :: Vec -> Array (Label × RType) -> Array (Component eff st)
+        ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext (ox × oy) external = map ext' (indexedRange external)
           where
-            ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
+            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
+              [ onMouseDrag \e -> case e of
+                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragEnd   e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+              ]
+              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
     
-        child :: Rect -> Maybe Substitution × Label × RType -> Component eff st
+        child :: Rect -> Maybe Substitution × Label × RType -> Component eff AppState
         child bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
           | isHOC t = g [] $ concat
             [ [ uirect bounds ]
