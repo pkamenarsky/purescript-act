@@ -90,7 +90,8 @@ emptyAppState =
   , dragState : Nothing
   -- , component : mkCmp componentType
   , rtype     : componentType
-  , substs    : L.Cons (SApp "a6" ((SApp "a8" L.Nil) L.: L.Nil)) L.Nil
+  -- , substs    : L.Cons (SApp "a6" ((SApp "a8" L.Nil) L.: L.Nil)) L.Nil
+  , substs    : L.Nil
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -582,7 +583,7 @@ typeComponent r ss t = typeComponent' t r ss t
                     modify' substs \st' -> let
                       a = 5
                       in case (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) of
-                          Just (_ × l × t) -> L.Cons (SApp l L.Nil) L.Nil
+                          Just (_ × _ × t) -> L.Cons (SApp l L.Nil) L.Nil
                           _ -> st'
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
