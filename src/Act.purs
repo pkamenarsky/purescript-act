@@ -552,6 +552,8 @@ typeComponent st r ss t = typeComponent' t r ss t
       where
         snap = fst $ snch st
 
+        childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
+
         inc :: Array (Label × RType) -> Array (Component eff AppState)
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
@@ -573,7 +575,7 @@ typeComponent st r ss t = typeComponent' t r ss t
               snap' :: Rect -> Maybe (Label -> AppState -> AppState)
               snap' = fst childCmp
 
-              shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
+              shrunkBounds = shrink childMargin bounds
           | otherwise = undefined
         child _ _ _ _ = const Nothing × g [] []
 
@@ -581,7 +583,7 @@ typeComponent st r ss t = typeComponent' t r ss t
         snch :: AppState -> CmpAppState eff
         snch st = snap' × cmp
           where
-            snap × snaps × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
+            snap × snaps × cmp = subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
             snap' :: Rect -> Maybe (Label -> AppState -> AppState)
             snap' bounds' = case firstJust snaps (\f -> f bounds') of

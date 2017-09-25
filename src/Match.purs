@@ -205,6 +205,9 @@ a = RVar (Var "A")
 b :: RType
 b = RVar (Var "B")
 
+tweet :: RType
+tweet = RVar (Var "Tweet")
+
 person :: RType
 person = RConst (Const "Person")
 
@@ -334,12 +337,21 @@ type1 = runType $ fun
 type2 :: RType
 type2 = runType $ fun
   [ fun
-    [ fun [ pure (array a), fun [ pure a ] component ] component
-    , fun [ pure location, pure a ] component
-    , fun [ pure a ] component
+    [ fun [ pure (array tweet), fun [ pure tweet ] component ] component
+    , fun [ pure location, pure tweet ] component
+    , fun [ pure tweet ] component
+    , pure (array tweet)
     ] component
   ]
   component
+-- type2 = runType $ fun
+--   [ fun
+--     [ fun [ pure (array a), fun [ pure a ] component ] component
+--     , fun [ pure location, pure a ] component
+--     , fun [ pure a ] component
+--     ] component
+--   ]
+--   component
 
 type C = Int
 
