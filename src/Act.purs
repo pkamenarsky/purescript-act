@@ -573,8 +573,8 @@ typeComponent st r ss t = typeComponent' t r ss t
         child _ _ _ _ = const Nothing × g [] []
 
         -- TODO: very inefficient
-        snch :: AppState -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × CmpAppState eff)
-        snch st = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
+        snch :: AppState -> CmpAppState eff
+        snch st = undefined -- subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext st (ox × oy) external = map ext' (indexedRange external)
@@ -584,11 +584,11 @@ typeComponent st r ss t = typeComponent' t r ss t
                   DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragEnd   e -> do
-                    modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) }
+                    modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
                     modify' substs \st' -> let
                       a = 5
                       in case (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) of
-                          Just (_ × _ × t) -> L.Cons (SApp l L.Nil) L.Nil
+                          -- Just (_ × _ × t) -> L.Cons (SApp l L.Nil) L.Nil
                           _ -> st'
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
