@@ -351,7 +351,7 @@ s1 :: Expr
 s1 = substitute (SApp "a5" ((SApp "a3" (SArg "a2" L.: Nil)) L.: Nil)) r1
 
 t2 :: forall a. a -> C -> (((a -> C) -> (a -> C) -> C) -> C) -> C
-t2 = \a5 a6 a7 -> a7 (\a4 a3 -> a4 a5)
+t2 = \a5 a6 a7 -> a7 (\a2 a3 -> a2 a5)
 
 r2 :: RType
 r2 = runType $ fun
@@ -362,7 +362,7 @@ r2 = runType $ fun
   component
 
 s2 :: Expr
-s2 = substitute (SApp "a7" ((SApp "a4" (SArg "a5" L.: Nil)) L.: Nil)) r2
+s2 = substitute (SApp "a7" ((SApp "a2" (SArg "a5" L.: Nil)) L.: Nil)) r2
 
 t3 :: forall a. a -> C -> (((a -> C) -> C) -> ((a -> C) -> C) -> C) -> C
 t3 = \a2 a3 a4 -> a4 (\x -> x a2) (\x -> a3)
