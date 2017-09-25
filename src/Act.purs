@@ -536,7 +536,7 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
-type CmpAppState eff = (Rect -> Maybe (AppState -> AppState)) × Component eff AppState
+type CmpAppState eff = (Rect -> Maybe (Label -> AppState -> AppState)) × Component eff AppState
 
 typeComponent :: forall eff. AppState -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
 typeComponent st r ss t = typeComponent' t r ss t
@@ -564,10 +564,16 @@ typeComponent st r ss t = typeComponent' t r ss t
                   Just t'   -> [ snd $ typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t' ]
                   otherwise -> [ uirectDashed shrunkBounds ]
                 otherwise         -> [ uirectDashed shrunkBounds ]
-            , ext st (ix × (iy + gap)) (A.fromFoldable args)
+            , map snd exts
             ]
             where
-              snap = undefined
+              exts = ext st (ix × (iy + gap)) (A.fromFoldable args)
+
+              snap :: Rect -> Maybe (Label -> AppState -> AppState)
+              snap bounds'
+                | intersect bounds shrunkBounds = Just (\l st -> st)
+                | otherwise = Nothing
+
               shrunkBounds = shrink ((7.0 * gap) × (1.0 * gap) × gap × gap) bounds
           | otherwise = undefined
         child _ _ _ _ = const Nothing × g [] []
@@ -576,22 +582,18 @@ typeComponent st r ss t = typeComponent' t r ss t
         snch :: AppState -> CmpAppState eff
         snch st = undefined -- subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
-        ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
+        ext :: AppState -> Vec -> Array (Label × RType) -> Array (CmpAppState eff)
         ext st (ox × oy) external = map ext' (indexedRange external)
           where
-            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
+            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = undefined × g
               [ onMouseDrag \e -> case e of
                   DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
-                    modify' substs \st' -> let
-                      a = 5
-                      in case (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) of
-                          -- Just (_ × _ × t) -> L.Cons (SApp l L.Nil) L.Nil
-                          _ -> st'
+                    modify (fromMaybe (const id) ((fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0)) $ l)
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
-            ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+            ext' (i × l × t) = const Nothing × uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
       | otherwise = const Nothing × g [] []
     typeComponent _ _ _ = const Nothing × g [] []
