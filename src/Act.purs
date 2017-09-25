@@ -498,12 +498,12 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a. Rect -> Array a -> (Rect -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
-subdivide' (bx × by × bw × bh) as f = snap × (g [] $ map (\(a × r) -> f r a) rects)
+subdivide' :: forall eff st a. Rect -> (Rect -> Rect) -> Array a -> (Rect -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
+subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(a × r) -> f r a) rects)
   where
      rects   = flip map (indexedRange as) \(i × a) -> a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
 
-     snap r' = firstJust rects (\(a × r) -> if intersect r r' then Just a else Nothing)
+     snap r' = firstJust rects (\(a × r) -> if intersect (snapf r) r' then Just a else Nothing)
 
      count = A.length as
      cx i  = bx + (i + 1.0) * gap + i * cw
@@ -559,8 +559,8 @@ typeComponent r ss t = typeComponent' t r ss t
         child _ _ = g [] []
 
         snch :: Unit -> ((Rect -> Maybe (Maybe Substitution × Label × RType)) × Component eff AppState)
-        snch _ = subdivide' bounds (A.fromFoldable $ zipMaybe substs children) child
-    
+        snch _ = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe substs children) child
+
         ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext (ox × oy) external = map ext' (indexedRange external)
           where
@@ -568,7 +568,7 @@ typeComponent r ss t = typeComponent' t r ss t
               [ onMouseDrag \e -> case e of
                   DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch unit)) (0.0 × 0.0 × 200.0 × 100.0) }
+                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch unit)) (e.pageX × e.pageY × 200.0 × 100.0) }
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
