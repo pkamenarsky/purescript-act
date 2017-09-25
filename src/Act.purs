@@ -508,12 +508,17 @@ isHOC :: RType -> Boolean
 isHOC (RFun _ (RConst (Const "Component"))) = true
 isHOC _ = false
 
+zipMaybe :: forall a b. L.List a -> L.List b -> L.List (Maybe a × b)
+zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
+zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
+zipMaybe _ L.Nil = L.Nil
+
 typeComponent :: forall eff st. Rect -> L.List Substitution -> RType -> Component eff st
 typeComponent bounds@(bx × by × bw × bh) substs rtype
   | Just (incoming × children) <- extract rtype = g [] $ concat
       [ [ uirect bounds ]
       , inc (A.fromFoldable incoming)
-      , [ subdivide bounds (A.fromFoldable $ L.zip substs children) child ]
+      , [ subdivide bounds (A.fromFoldable $ zipMaybe substs children) child ]
       ]
   where
     inc :: Array (Label × RType) -> Array (Component eff st)
@@ -526,12 +531,13 @@ typeComponent bounds@(bx × by × bw × bh) substs rtype
         ext' (i × l × (RFun _ (RConst (Const "Component")))) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC")
         ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
 
-    child :: Rect -> Substitution × Label × RType -> Component eff st
-    child bounds@(ix × iy × _ × _) (SApp fs ss × l × t@(RFun args _))
+    child :: Rect -> Maybe Substitution × Label × RType -> Component eff st
+    child bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
       | isHOC t = g [] $ concat
         [ [ uirect bounds ]
-        -- , [ uirectDashed $ shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds ]
-        , [ typeComponent (shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds) ss t ]
+        , case s of
+            Just (SApp fs ss) -> [ typeComponent (shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds) ss t ]
+            otherwise         -> [ uirectDashed $ shrink ((3.0 * gap) × (3.0 * gap) × gap × gap) bounds ]
         , ext (ix × (iy + gap)) (A.fromFoldable args)
         ]
       | otherwise = undefined
