@@ -508,17 +508,17 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cy    = by + gap
 
 subdivide' :: forall eff st a b. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> b × Component eff st) -> ((Rect -> Maybe a) × Array b × Component eff st)
-subdivide' = undefined
--- subdivide' (bx × by × bw × bh) snapf as f = snap × (g [] $ map (\(i × a × r) -> f r i a) rects)
---   where
---      rects   = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
--- 
---      snap r' = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
--- 
---      count = A.length as
---      cx i  = bx + (i + 1.0) * gap + i * cw
---      cw    = (bw - (gap * (tn count + 1.0))) / tn count
---      cy    = by + gap
+subdivide' (bx × by × bw × bh) snapf as f = snap × bs × (g [] cmps)
+  where
+     count     = A.length as
+     cx i      = bx + (i + 1.0) * gap + i * cw
+     cw        = (bw - (gap * (tn count + 1.0))) / tn count
+     cy        = by + gap
+
+     rects     = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+     bs × cmps = unzip $ map (\(i × a × r) -> f r i a) rects
+
+     snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
@@ -581,12 +581,14 @@ typeComponent st r ss t = typeComponent' t r ss t
         snch :: AppState -> CmpAppState eff
         snch st = snap' × cmp
           where
-            snap × _ × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
+            snap × snaps × cmp = subdivide' bounds (shrink ((7.0 * gap) × (1.0 * gap) × gap × gap)) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
             snap' :: Rect -> Maybe (Label -> AppState -> AppState)
-            snap' bounds' = case snap bounds' of
-              Just _  -> Just (\l st -> set substs (L.Cons (SApp l L.Nil) L.Nil) st)
-              Nothing -> Nothing
+            snap' bounds' = case firstJust snaps (\f -> f bounds') of
+              Just f   -> Just f
+              Nothing -> case snap bounds' of
+                Just _  -> Just (\l st -> set substs (L.Cons (SApp l L.Nil) L.Nil) st)
+                Nothing -> Nothing
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext st (ox × oy) external = map ext' (indexedRange external)
