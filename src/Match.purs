@@ -285,7 +285,12 @@ data Substitution = SApp Label (List Substitution)
                   | Placeholder
 
 substitute :: Substitution -> RType -> Expr
-substitute (SApp s ss) (RFun args r) = ELam (map fst args) (EApp (EVar s) undefined)
+substitute (SApp s ss) t'@(RFun args r)
+  | Just t <- rtype s t' = case t × ss of
+      (RFun (Cons a Nil) r × (Cons (SArg b) Nil)) -> EApp (EVar s) (EVar b)
+      (RFun args' _ × ss') -> EApp (EVar s) (ELam (map fst args') undefined)
+      _ -> undefined
+  | otherwise = undefined
 substitute _ _ = undefined
 
 --------------------------------------------------------------------------------
