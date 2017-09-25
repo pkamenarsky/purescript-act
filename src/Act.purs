@@ -560,8 +560,13 @@ typeComponent st r ss t = typeComponent' t r ss t
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
         inc :: Array (Label × RType) -> Array (Component eff AppState)
-        inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
-          uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
+        inc incoming = flip map (indexedRange incoming) \(i × l × t) -> g
+          [ onMouseDrag \e -> case e of
+             DragStart e -> modify \st -> st { debug = "START" }
+             DragMove  e -> modify \st -> st { debug = "MOVE" }
+             DragEnd   e -> modify \st -> st { debug = "END" }
+          ]
+          [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
     
         child :: AppState -> Rect -> Int -> Maybe Substitution × Label × RType -> CmpAppState eff
         child st bounds@(ix × iy × _ × _) index (s × l × t@(RFun args _))
