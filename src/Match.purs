@@ -6,6 +6,7 @@ import Control.Monad.State
 import Prelude
 import Data.Array
 import Data.Either
+import Data.Lens
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -282,6 +283,17 @@ instance showExpr :: Show Expr where
 data Substitution = SApp Label (List Substitution)
                   | SArg Label
                   | Placeholder
+
+_SApp :: Prism' Substitution (Label × List Substitution)
+_SApp = prism (\(l × s) -> SApp l s) $ \s -> case s of
+  SApp l s -> Right (l × s)
+  s        -> Left s
+
+_SApp' :: Lens' Substitution (Label × List Substitution)
+_SApp' = lens ex (\_ (l × s) -> SApp l s)
+  where
+    ex (SApp l s) = l × s
+    ex _ = undefined
 
 substitute :: Substitution -> RType -> Expr
 substitute s t@(RFun args _) = ELam (map fst args) (substitute' t s t)
