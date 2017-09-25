@@ -2,9 +2,7 @@ module Match where
 
 import Control.Apply
 import Control.Alternative
-
 import Control.Monad.State
-
 import Prelude
 import Data.Array
 import Data.Either
@@ -282,7 +280,7 @@ instance showExpr :: Show Expr where
   show (ELam a e)   = "(λ" <> a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
-data Substitution = SApp Label (List Substitution) | SArg (Either Int Label) | Placeholder
+data Substitution = SApp Label (List Substitution) | SArg Label | Placeholder
 
 substitute :: Substitution -> RType -> Expr
 
@@ -319,22 +317,58 @@ type1 = runType $ fun
   ]
   component
 
-subst1 :: Expr
-subst1 = substitute (SApp "a4" (SArg (Right "a2") L.: SArg (Left 0) L.: Nil)) type1
-
 type C = Int
 
 t0 :: forall a. a -> C -> (a -> C) -> C
 t0 = \a2 a3 a4 -> a4 a2
 
+r0 :: RType
+r0 = runType $ fun
+  [ pure a
+  , pure component
+  , fun [ pure a ] component
+  ]
+  component
+
+s0 :: Expr
+s0 = substitute (SApp "a4" (SArg "a2" L.: Nil)) r0
+
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
-t1 = \a2 a3 a4 -> a4 (\x -> (\a -> a2 a) x)
+t1 = \a3 a4 a5 -> a5 (\a2 -> (\a1 -> a3 a1) a2)
+
+r1 :: RType
+r1 = runType $ fun
+  [ fun [ pure a ] component
+  , pure component
+  , fun [ fun [ pure a ] component ] component
+  ]
+  component
+
+s1 :: Expr
+s1 = substitute (SApp "a4" (SArg "a2" L.: Nil)) r1
 
 t2 :: forall a. a -> C -> (((a -> C) -> (a -> C) -> C) -> C) -> C
 t2 = \a2 a3 a4 -> a4 (\x y -> x a2)
 
+r2 :: RType
+r2 = runType $ fun
+  [ pure a
+  , pure component
+  , fun [ fun [ fun [ pure a ] component, fun [ pure a ] component ] component  ] component
+  ]
+  component
+
 t3 :: forall a. a -> C -> (((a -> C) -> C) -> ((a -> C) -> C) -> C) -> C
 t3 = \a2 a3 a4 -> a4 (\x -> x a2) (\x -> a3)
+
+r3 :: RType
+r3 = runType $ fun
+  [ pure a
+  , pure component
+  , fun [ fun [ fun [ pure a ] component ] component, fun [ fun [ pure a ] component ] component ] component
+  ]
+  component
+
 
 --------------------------------------------------------------------------------
 
