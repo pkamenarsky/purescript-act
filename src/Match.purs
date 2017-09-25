@@ -313,7 +313,7 @@ type1 :: RType
 type1 = runType $ fun
   [ pure a
   , pure component
-  , fun [ pure a ] component
+  , fun [ pure a, pure location ] component
   , fun [ fun [ pure a ] component ] component
   , fun [ fun [ pure location ] component ] component
   ]
