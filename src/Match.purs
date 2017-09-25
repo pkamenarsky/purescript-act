@@ -271,13 +271,13 @@ type Label = String
 
 data Expr = EVar Label
           | EApp Expr Expr
-          | ELam Label Expr
+          | ELam (List Label) Expr
           | EPlaceholder
 
 instance showExpr :: Show Expr where
-  show (EVar label) = label
+  show (EVar v)     = v
   show (EApp f x)   = show f <> " " <> show x
-  show (ELam a e)   = "(λ" <> a <> ". " <> show e <> ")"
+  show (ELam a e)   = "(λ" <> joinWith " -> " (A.fromFoldable a) <> " -> " <> show e <> ")"
   show EPlaceholder = "_"
 
 data Substitution = SApp Label (List Substitution)
@@ -285,19 +285,10 @@ data Substitution = SApp Label (List Substitution)
                   | Placeholder
 
 substitute :: Substitution -> RType -> Expr
+substitute (SApp s ss) (RFun args r) = ELam (map fst args) (EApp (EVar s) undefined)
+substitute _ _ = undefined
 
-substitute (SArg x) _                  = undefined -- EVar x
-substitute Placeholder  _              = EPlaceholder
-substitute (SApp f xs) t@(RFun args r) = undefined -- foldr (\(l × t) e -> ELam l e) (negative f xs t) args
-substitute (SApp f _) _                = undefined
-
-negative :: Label -> List Substitution -> RType -> Expr
-negative f (Cons Placeholder xs) t  = EApp (negative f xs t) EPlaceholder
-negative f (Cons (SArg x) xs) t     = undefined -- EApp (negative f xs t) (EVar x) 
-negative f (Cons subst xs) t
-  | Just t' <- rtype f t            = EApp (negative f xs t) (substitute subst t')
-  | otherwise                       = undefined
-negative f Nil _                    = EVar f
+--------------------------------------------------------------------------------
 
 rtype :: Label -> RType -> Maybe RType
 rtype label (RFun args r) = go args
