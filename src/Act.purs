@@ -577,7 +577,13 @@ typeComponent r ss t = typeComponent' t r ss t
               [ onMouseDrag \e -> case e of
                   DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) }
+                  DragEnd   e -> do
+                    modify \st -> st { dragState = Nothing, debug = show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) }
+                    modify' substs \st' -> let
+                      a = 5
+                      in case (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) of
+                          Just (_ × l × t) -> L.Cons (SApp l L.Nil) L.Nil
+                          _ -> st'
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
