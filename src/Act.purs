@@ -498,6 +498,18 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
+subdivide' :: forall eff st a. Rect -> Array a -> (Rect -> a -> Component eff st) -> ((Rect -> Maybe a) × Component eff st)
+subdivide' (bx × by × bw × bh) as f = snap × (g [] $ map (\(a × r) -> f r a) rects)
+  where
+     rects   = flip map (indexedRange as) \(i × a) -> a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+
+     snap r' = firstJust rects (\(a × r) -> if intersect r r' then Just a else Nothing)
+
+     count = A.length as
+     cx i  = bx + (i + 1.0) * gap + i * cw
+     cw    = (bw - (gap * (tn count + 1.0))) / tn count
+     cy    = by + gap
+
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
@@ -523,24 +535,12 @@ typeComponent r ss t = typeComponent' t r ss t
       | Just (incoming × children) <- extract rtype = g [] $ concat
           [ [ uirect bounds ]
           , inc (A.fromFoldable incoming)
-          , [ subdivide bounds (A.fromFoldable $ zipMaybe substs children) child ]
+          , [ childcmp ]
           ]
       where
         inc :: Array (Label × RType) -> Array (Component eff AppState)
         inc incoming = flip map (indexedRange incoming) \(i × l × t) ->
           uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t)
-    
-        ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
-        ext (ox × oy) external = map ext' (indexedRange external)
-          where
-            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
-              [ onMouseDrag \e -> case e of
-                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-              ]
-              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
-            ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
     
         child :: Rect -> Maybe Substitution × Label × RType -> Component eff AppState
         child bounds@(ix × iy × _ × _) (s × l × t@(RFun args _))
@@ -558,5 +558,18 @@ typeComponent r ss t = typeComponent' t r ss t
           | otherwise = undefined
         child _ _ = g [] []
     
+        snap × childcmp = subdivide' bounds (A.fromFoldable $ zipMaybe substs children) child
+    
+        ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
+        ext (ox × oy) external = map ext' (indexedRange external)
+          where
+            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
+              [ onMouseDrag \e -> case e of
+                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragEnd   e -> modify \st -> st { dragState = Nothing, debug = show $ snap (meToV e × 200.0 × 100.0) }
+              ]
+              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
+            ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
       | otherwise = g [] []
     typeComponent _ _ _ = g [] []
