@@ -118,7 +118,7 @@ ui = state \st -> div
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ typeComponent (px × py × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ typeComponent ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text st.debug ]
  ]
