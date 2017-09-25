@@ -556,7 +556,7 @@ typeComponent r ss t = typeComponent' t r ss t
             [ [ uirect bounds ]
             , case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t'   -> [ typeComponent' tt shrunkBounds (substs <<< ?_ <<< _SApp' <<< _2) t' ]
+                  Just t'   -> [ typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t' ]
                   otherwise -> [ uirectDashed shrunkBounds ]
                 otherwise         -> [ uirectDashed shrunkBounds ]
             , ext st (ix × (iy + gap)) (A.fromFoldable args)
