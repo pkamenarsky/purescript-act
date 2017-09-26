@@ -158,13 +158,14 @@ _SApp' = lens ex (\_ (l × s) -> SApp l s)
     ex _ = "(_SApp' error)" × L.Nil
 
 substitute :: Substitution -> RType -> Expr
-substitute s t@(RFun args _) = ELam (map fst args) (substitute' t s t)
+substitute s t@(RFun ((_ × RFun args _) L.: L.Nil) _) = ELam (map fst args) (substitute' t s t)
   where
     substitute' :: RType -> Substitution -> RType -> Expr
     substitute' tt (SApp s ss) (RFun args r)
       | Just t <- labeltype s tt = case t × ss of
-          (RFun (Cons a Nil) _ × Cons (SArg b) Nil) -> EApp (EVar s) (EVar b L.: Nil)
-          (RFun args' _ × ss) -> EApp (EVar s) (map (\s' -> ELam (map fst args') (substitute' tt s' t)) ss)
+          (RFun (Cons a Nil) _ × Cons (SArg b) Nil)    -> EApp (EVar s) (EVar b L.: Nil)
+          (RFun (Cons a Nil) _ × Cons Placeholder Nil) -> EApp (EVar s) (EPlaceholder L.: Nil)
+          (RFun args' _ × ss) -> EApp (EVar s) (map (\(s' × (_ × t)) -> substitute' tt s' t) (L.zip ss args'))
           _ -> EVar "error1"
       | otherwise = EVar ("undefined: " <> s <> " in " <> show tt)
     substitute' tt (SArg a) _ = EVar a
