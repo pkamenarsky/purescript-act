@@ -249,14 +249,8 @@ instance bindSnapM :: Bind (SnapM c b) where
     where
       SnapM s' a' = f a
 
-type SnapComponent' t  = SnapM Rect (Label -> RType -> AppState -> AppState) t
-type SnapComponent eff = SnapComponent' (Component eff AppState)
-
 snappable :: forall a b c. (c -> Maybe b) -> a -> SnapM c b a
 snappable f a = SnapM f a
-
-snappableRect :: forall a b. Rect -> b -> a -> SnapM Rect b a
-snappableRect bounds b a = SnapM (\bounds' -> if intersect bounds bounds' then (Just b) else Nothing) a
 
 snap :: forall a b c. SnapM c b a -> c -> Maybe b
 snap (SnapM f _) c = f c
@@ -265,6 +259,19 @@ snapValue :: forall a b c. SnapM c b a -> a
 snapValue (SnapM _ a) = a
 
 --------------------------------------------------------------------------------
+
+type SnapComponent' t  = SnapM (Either Rect Vec) (Either (Label -> RType -> AppState -> AppState) Unit) t
+type SnapComponent eff = SnapComponent' (Component eff AppState)
+
+snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
+snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
+  Left bounds' -> if intersect bounds bounds' then (Just (Left b)) else Nothing
+  Right       _ -> Nothing
+
+snappableCircle :: forall a b c d. Number -> Vec -> b -> a -> SnapM (Either c Vec) (Either b d) a
+snappableCircle radius pos b a = flip SnapM a \pos' -> case pos' of
+  Left     _ -> Nothing
+  Right pos' -> if inradius radius pos pos' then (Just (Left b)) else Nothing
 
 typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
@@ -293,9 +300,9 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                    case snap children (e.pageX × e.pageY × 200.0 × 100.0) of
-                      Just f  -> modify (f l t)
-                      Nothing -> pure unit
+                    case snap children (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+                      Just (Left f) -> modify (f l t)
+                      _             -> pure unit
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = g
