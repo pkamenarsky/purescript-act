@@ -180,15 +180,12 @@ data UILabel = UILabelLeft String | UILabelRight String
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
 uicircle (x' × y') label' = g [] $
-  [ circle [ cx (px (x' + offset label')), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
+  [ circle [ cx (px x'), cy (px y'), r (px 5.0), fill "transparent", stroke "#d90e59", strokeWidth (px 3.0) ] []
   , uilabel label'
   ]
   where
-    offset (UILabelLeft _) = -60.0
-    offset (UILabelRight _) = 60.0
-
-    uilabel (UILabelLeft str)  = label (x' + 20.0 × y' + 4.0) "end" str
-    uilabel (UILabelRight str) = label (x' - 20.0 × y' + 4.0) "start" str
+    uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
+    uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
 
 tn :: Int -> Number
 tn = I.toNumber
@@ -304,14 +301,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                       Just (Left f) -> modify (f l t)
                       _             -> pure unit
               ]
-              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
+              [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
             ext' (i × l × t) = g
               [ onMouseDrag \e -> case e of
                  DragStart e -> modify \st -> st { debug = "START" }
                  DragMove  e -> modify \st -> st { debug = "MOVE" }
                  DragEnd   e -> modify \st -> st { debug = "END" }
               ]
-              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t) ]
+              [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft $ show t) ]
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
         inc incoming = g [] <$> flip traverse (indexedRange incoming) \(i × ai × l × t) -> do
@@ -321,7 +318,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                DragMove  e -> modify \st -> st { debug = "MOVE" }
                DragEnd   e -> modify \st -> st { debug = "END" }
             ]
-            [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
+            [ uicircle (bx - (gap * 3.0) × by + (tn i * gap)) (UILabelRight $ show t) ]
 
         children :: SnapComponent eff
         children = g [] <$> subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
