@@ -672,7 +672,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                       Just f  -> modify (f l t)
                       Nothing -> pure unit
               ]
-              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
+              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC2") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
       | otherwise = pure $ g [] []
     typeComponent' _ _ _ _ _ = pure $ g [] []
