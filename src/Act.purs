@@ -114,11 +114,11 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       snd $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
+       snapValue $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snd $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text $ show st.substs ]
  -- , state \st -> code [] [ text st.debug ]
@@ -576,23 +576,32 @@ instance bindSnapM :: Bind (SnapM c b) where
     where
       SnapM s' a' = f a
 
-type SnapComponent eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
+-- type SnapComponent eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
 
--- type SnapComponent eff = SnapM (Rect × Label × RType) (AppState -> AppState) (Component eff AppState)
+type SnapComponent eff = SnapM (Rect × Label × RType) (AppState -> AppState) (Component eff AppState)
+
+joinSnapM :: forall a b c d e. SnapM c b (SnapM d e a) -> SnapM d e a
+joinSnapM = undefined
+
+snap :: forall a b c. SnapM c b a -> c -> Maybe b
+snap = undefined
+
+snapValue :: forall a b c. SnapM c b a -> a
+snapValue = undefined
 
 typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
   where
     typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
     typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
-      | Just (incoming × children) <- extract rtype = (×) snap $ g [] $ concat
-          [ [ uirect bounds ]
-          , inc (A.fromFoldable incoming)
-          , [ snd $ snch st ]
-          ]
+      | Just (incoming × children) <- extract rtype = do
+          chs <- snch st
+          pure $ g [] $ concat
+            [ [ uirect bounds ]
+            , inc (A.fromFoldable incoming)
+            , [ chs ]
+            ]
       where
-        snap = fst $ snch st
-
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
         inc :: Array (RArgIndex × Label × RType) -> Array (Component eff AppState)
@@ -606,28 +615,28 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
     
         child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
         child st bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
-          | isHOC t = (×) snap' $ g [] $ concat
-            [ [ uirect bounds ]
-            , [ snd childCmp ]
-            , ext st (ix × (iy + gap)) (A.fromFoldable args)
-            ]
+          | isHOC t = do
+            childCmp' <- childCmp
+            pure $ g [] $ concat
+              [ [ uirect bounds ]
+              , [ childCmp' ]
+              , ext st (ix × (iy + gap)) (A.fromFoldable args)
+              ]
             where
               childCmp = case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
                   Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                  Nothing -> const Nothing × uirectDashed shrunkBounds
-                _ -> const Nothing × uirectDashed shrunkBounds
-
-              snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
-              snap' = fst childCmp
+                  Nothing -> pure $ uirectDashed shrunkBounds
+                _ -> pure $ uirectDashed shrunkBounds
 
               shrunkBounds = shrink childMargin bounds
-          | otherwise = const Nothing × g [] []
-        child _ _ _ _ = const Nothing × g [] []
+          | otherwise = pure $ g [] []
+        child _ _ _ _ = pure $ g [] []
 
         -- TODO: very inefficient
         snch :: AppState -> SnapComponent eff
-        snch st = snap' × cmp
+        snch st = do
+          joinSnapM $ subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) (child st)
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
@@ -635,25 +644,23 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
             zipSubsts ss L.Nil = L.Nil
 
-            snap × snaps × cmp = subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) (child st)
+            -- snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
+            -- snap' bounds' = case firstJust snaps (\f -> f bounds') of
+            --   Just f   -> Just f
+            --   Nothing -> case snap bounds' of
+            --     -- Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
+            --     Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> over substs (\sss -> if L.length sss == 0
+            --       then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
+            --       else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)) st)
+            --     Nothing -> Nothing
 
-            snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
-            snap' bounds' = case firstJust snaps (\f -> f bounds') of
-              Just f   -> Just f
-              Nothing -> case snap bounds' of
-                -- Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
-                Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> over substs (\sss -> if L.length sss == 0
-                  then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
-                  else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)) st)
-                Nothing -> Nothing
+            -- repeat :: forall a. Int -> a -> L.List a
+            -- repeat 0 _ = L.Nil
+            -- repeat n a = L.Cons a (repeat (n - 1) a)
 
-            repeat :: forall a. Int -> a -> L.List a
-            repeat 0 _ = L.Nil
-            repeat n a = L.Cons a (repeat (n - 1) a)
-
-            argCount :: RType -> Int
-            argCount (RFun args _) = L.length args
-            argCount _ = 0
+            -- argCount :: RType -> Int
+            -- argCount (RFun args _) = L.length args
+            -- argCount _ = 0
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext st (ox × oy) external = map ext' (indexedRange external)
@@ -664,9 +671,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
-                    modify (fromMaybe (\_ _ -> id) ((fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0)) l t)
+
+                    case snap (snch st) ((e.pageX × e.pageY × 200.0 × 100.0) × l × t) of
+                      Just f  -> modify f
+                      Nothing -> pure unit
+
+                    -- modify (fromMaybe (\_ _ -> id) ((snap (snch st)) ((e.pageX × e.pageY × 200.0 × 100.0) × l × t)))
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
-      | otherwise = const Nothing × g [] []
-    typeComponent _ _ _ = const Nothing × g [] []
+      | otherwise = pure $ g [] []
+    typeComponent' _ _ _ _ _ = pure $ g [] []
