@@ -257,7 +257,7 @@ snapValue (SnapM _ a) = a
 
 --------------------------------------------------------------------------------
 
-type SnapComponent' t  = SnapM (Either Rect Vec) (Either (Label -> RType -> AppState -> AppState) Unit) t
+type SnapComponent' t  = SnapM (Either Rect Vec) (Either (Label -> RType -> AppState -> AppState) (Label -> RType -> AppState -> AppState)) t
 type SnapComponent eff = SnapComponent' (Component eff AppState)
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
@@ -265,10 +265,10 @@ snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
   Left bounds' -> if intersect bounds bounds' then (Just (Left b)) else Nothing
   Right       _ -> Nothing
 
-snappableCircle :: forall a b c d. Number -> Vec -> b -> a -> SnapM (Either c Vec) (Either b d) a
+snappableCircle :: forall a b c d. Number -> Vec -> b -> a -> SnapM (Either c Vec) (Either d b) a
 snappableCircle radius pos b a = flip SnapM a \pos' -> case pos' of
   Left     _ -> Nothing
-  Right pos' -> if inradius radius pos pos' then (Just (Left b)) else Nothing
+  Right pos' -> if inradius radius pos pos' then (Just (Right b)) else Nothing
 
 typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
@@ -304,9 +304,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
             ext' (i × l × t) = g
               [ onMouseDrag \e -> case e of
-                 DragStart e -> modify \st -> st { debug = "START" }
-                 DragMove  e -> modify \st -> st { debug = "MOVE" }
-                 DragEnd   e -> modify \st -> st { debug = "END" }
+                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                  DragEnd   e -> do
+                    modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
+
+                    case snap children (Right (e.pageX × e.pageY)) of
+                      Just (Right f) -> modify (f l t)
+                      _              -> pure unit
               ]
               [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft $ show t) ]
 
