@@ -324,7 +324,7 @@ exprToJS (ELam a e) = do
 exprToJS (EApp f as) = do
   f'  <- exprToJS f
   as' <- exprToJS as
-  pure $ "" <> f' <> "(" <> as' <> ")"
+  pure $ "(" <> f' <> ")(" <> as' <> ")"
 exprToJS EPlaceholder = Nothing
 
 testJSFun = jsFunFromString "function(a) { return function(b) { return a + b; } }"
