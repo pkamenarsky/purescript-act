@@ -273,9 +273,11 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
     typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
           children' <- children
-          pure $ g [] $ concat
-            [ [ uirect bounds ]
-            , inc (A.fromFoldable incTypes)
+          inc'      <- inc (A.fromFoldable incTypes)
+
+          pure $ g []
+            [ uirect bounds
+            , inc'
             , children'
             ]
       where
@@ -304,18 +306,18 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t) ]
 
-        inc :: Array (RArgIndex × Label × RType) -> Array (Component eff AppState)
-        inc incoming = flip map (indexedRange incoming) \(i × ai × l × t) -> g
-          [ onMouseDrag \e -> case e of
-             DragStart e -> modify \st -> st { debug = "START" }
-             DragMove  e -> modify \st -> st { debug = "MOVE" }
-             DragEnd   e -> modify \st -> st { debug = "END" }
-          ]
-          [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
+        inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
+        inc incoming = g [] <$> flip traverse (indexedRange incoming) \(i × ai × l × t) -> do
+          pure $ g
+            [ onMouseDrag \e -> case e of
+               DragStart e -> modify \st -> st { debug = "START" }
+               DragMove  e -> modify \st -> st { debug = "MOVE" }
+               DragEnd   e -> modify \st -> st { debug = "END" }
+            ]
+            [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
 
-        children :: SnapComponent' (Array (Component eff AppState))
-        children = do
-          subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+        children :: SnapComponent eff
+        children = g [] <$> subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
