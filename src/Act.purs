@@ -430,17 +430,37 @@ listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "c
 
 testUI :: forall eff st. Component eff st
 testUI = div [ class_ "component-container" ]
-  [ listComponent tweets tweetComponent
+  [ -- listComponent tweets tweetComponent
+    listComponent'
   ]
 
 --------------------------------------------------------------------------------
 
-type Ref = Unit × RType
+type Ref  = Unit × RType
+type Ref' = Unit
 
 mkRef :: forall a. a -> RType -> Ref
 mkRef cmp rtype = unsafeCoerce cmp × rtype
 
-componentFromRef :: forall eff st. Expr -> Array Ref -> Component eff st
+mkRef' :: forall a. a -> Ref'
+mkRef' = unsafeCoerce
+
+componentFromRef :: forall eff st. Expr -> Array Ref' -> Component eff st
 componentFromRef e args
-  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map fst args)
+  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) args
   | otherwise             = div [] []
+
+listR :: Ref'
+listR = mkRef' listComponent
+
+tweetR :: Ref'
+tweetR = mkRef' tweetComponent
+
+tweetsR :: Ref'
+tweetsR = mkRef' tweets
+
+listComponentExpr :: Expr
+listComponentExpr = ELam "listC" (ELam "tweets" (ELam "tweetC" (EApp (EApp (EVar "listC") (EVar "tweets")) (EVar "tweetC"))))
+
+listComponent' :: forall eff st. Component eff st
+listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]

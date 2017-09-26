@@ -320,14 +320,17 @@ exprToJS :: forall eff st. Expr -> Maybe String
 exprToJS (EVar x)   = Just x
 exprToJS (ELam a e) = do
   e' <- exprToJS e
-  pure $ "function(" <> show a <> ") { return (" <> e' <> "); }"
+  pure $ "function(" <> a <> ") { return " <> e' <> "; }"
 exprToJS (EApp f as) = do
   f'  <- exprToJS f
   as' <- exprToJS as
-  pure $ "(" <> f' <> ")(" <> as' <> ");"
+  pure $ "" <> f' <> "(" <> as' <> ")"
 exprToJS EPlaceholder = Nothing
 
 testJSFun = jsFunFromString "function(a) { return function(b) { return a + b; } }"
+
+listComponentExpr :: Expr
+listComponentExpr = ELam "listC" (ELam "tweetC" (ELam "tweets" (EApp (EApp (EVar "listC") (EVar "tweetC")) (EVar "tweets"))))
 
 testJSFunApply :: Number
 testJSFunApply = applyJSFun testJSFun [ unsafeCoerce 5.0, unsafeCoerce 5.0 ]
