@@ -1,0 +1,9 @@
+.tweet {
+    font-family: Helvetica, sans-serif;
+}
+
+.tweet .user {
+    font-size: 14px;
+    font-weight: 700;
+    color: #000;
+}

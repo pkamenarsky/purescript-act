@@ -82,7 +82,7 @@ emptyAppState =
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui')
-  where ui' = R.createFactory (R.createClass (mkSpec emptyAppState ui)) unit
+  where ui' = R.createFactory (R.createClass (mkSpec emptyAppState mainUI)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -92,6 +92,9 @@ main = void (elm' >>= RD.render ui')
           pure $ unsafePartial fromJust elm
 
 --------------------------------------------------------------------------------
+
+mainUI :: forall eff. Component eff AppState
+mainUI = div [] [ testUI ]
 
 ui :: forall eff. Component eff AppState
 ui = state \st -> div
@@ -394,3 +397,39 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             child _ _ _ = pure $ g [] []
       | otherwise = pure $ g [] []
     typeComponent' _ _ _ _ _ = pure $ g [] []
+
+--------------------------------------------------------------------------------
+
+type Tweet =
+  { user :: String
+  , text :: String
+  , date :: String
+  }
+
+tweet :: Tweet
+tweet =
+  { user: "User1"
+  , text: "test text"
+  , date: "01.01.1999"
+  }
+
+tweets :: Array Tweet
+tweets =
+  [ { user: "A"
+    , text: "test text"
+    , date: "01.01.1999"
+    }
+  ]
+
+tweetComponent :: forall eff st. Tweet -> Component eff st
+tweetComponent tweet = div [ class_ "tweet" ]
+  [ div [ class_ "user" ] [ text tweet.user ]
+  ]
+
+listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
+listComponent = undefined
+
+testUI :: forall eff st. Component eff st
+testUI = div []
+  [ tweetComponent tweet
+  ]

@@ -242,6 +242,9 @@ width v _ = P.width v
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
 
+class_ :: forall eff st. String -> Props eff st
+class_ v _ = P.unsafeMkProps "className" v
+
 data_ :: forall eff st. String -> String -> Props eff st
 data_ prefix v _ = P.unsafeMkProps ("data-" <> prefix) v
 

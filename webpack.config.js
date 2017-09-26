@@ -41,6 +41,10 @@ module.exports = {
           pscIde: true,
           src: ['.psc-package/psc-*/*/*/src/**/*.purs', 'src/**/*.purs']
         }
+      },
+      {
+        test: /\.css$/,
+        loaders: ['style-loader', 'css-loader']
       }
     ],
   },
