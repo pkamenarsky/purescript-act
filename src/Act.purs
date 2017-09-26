@@ -420,12 +420,15 @@ tweetComponent :: forall eff st. Tweet -> Component eff st
 tweetComponent tweet = div [ class_ "tweet" ]
   [ div [ class_ "user" ] [ text tweet.user ]
   , div [ class_ "text" ] [ text tweet.text ]
+  , div [ class_ "icon1" ] [ ]
+  , div [ class_ "icon2" ] [ ]
+  , div [ class_ "icon3" ] [ ]
   ]
 
 listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
 listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
 testUI :: forall eff st. Component eff st
-testUI = div []
+testUI = div [ class_ "component-container" ]
   [ listComponent tweets tweetComponent
   ]
