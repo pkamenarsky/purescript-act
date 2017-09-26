@@ -9,14 +9,16 @@
 
 .component-container {
     position: absolute;
-    border-radius: 10px;
+    border-radius: 7px;
+    overflow: hidden;
 
-    border: 3px #eee dashed;
+    border: 1px #eee solid;
 
     top: 100px;
-    left: 100px;
+    left: 50%;
     width: 300px;
     height: 500px;
+    margin-left: -150px;
 }
 
 .list {
