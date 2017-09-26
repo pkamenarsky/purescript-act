@@ -432,3 +432,15 @@ testUI :: forall eff st. Component eff st
 testUI = div [ class_ "component-container" ]
   [ listComponent tweets tweetComponent
   ]
+
+--------------------------------------------------------------------------------
+
+type Ref = Unit × RType
+
+mkRef :: forall a. a -> RType -> Ref
+mkRef cmp rtype = unsafeCoerce cmp × rtype
+
+componentFromRef :: forall eff st. Expr -> Array Ref -> Component eff st
+componentFromRef e args
+  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map fst args)
+  | otherwise             = div [] []

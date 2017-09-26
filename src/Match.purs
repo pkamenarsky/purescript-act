@@ -22,6 +22,12 @@ import Data.Array as A
 import Data.List as L
 import Data.Map as M
 
+foreign import data JSFun :: Type
+
+foreign import jsFunFromString :: String -> JSFun
+
+foreign import applyJSFun :: forall a. JSFun -> Array Unit -> a
+
 infixr 6 Tuple as ×
 infixr 6 type Tuple as ×
 
@@ -127,14 +133,18 @@ componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] compone
 type Label = String
 
 data Expr = EVar Label
-          | EApp Expr (List Expr)
-          | ELam (List Label) Expr
+          | EApp Expr Expr
+          -- | EApp Expr (List Expr)
+          -- | ELam (List Label) Expr
+          | ELam Label Expr
           | EPlaceholder
 
 instance showExpr :: Show Expr where
   show (EVar v)     = v
-  show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
-  show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
+  -- show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
+  show (EApp f x)   = show f <> " " <> show x
+  -- show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
+  show (ELam a e)   = "(λ" <> show a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
 data Substitution = SApp Label (List Substitution)
@@ -158,20 +168,21 @@ _SApp' = lens ex (\_ (l × s) -> SApp l s)
     ex _ = "(_SApp' error)" × L.Nil
 
 substitute :: Substitution -> RType -> Expr
-substitute s t@(RFun ((_ × RFun args _) L.: L.Nil) _) = ELam (map fst args) (substitute' t s t)
-  where
-    substitute' :: RType -> Substitution -> RType -> Expr
-    substitute' tt (SApp s ss) (RFun args r)
-      | Just t <- labeltype s tt = case t × ss of
-          (RFun (Cons a Nil) _ × Cons (SArg b) Nil)    -> EApp (EVar s) (EVar b L.: Nil)
-          (RFun (Cons a Nil) _ × Cons Placeholder Nil) -> EApp (EVar s) (EPlaceholder L.: Nil)
-          (RFun args' _ × ss) -> EApp (EVar s) (map (\(s' × (_ × t)) -> substitute' tt s' t) (L.zip ss args'))
-          _ -> EVar "error1"
-      | otherwise = EVar ("undefined: " <> s <> " in " <> show tt)
-    substitute' tt (SArg a) _ = EVar a
-    substitute' tt Placeholder _ = EPlaceholder
-    substitute' tt _ _ = EVar "error2"
-substitute _ _ = EVar "error3"
+substitute _ _ = EPlaceholder
+-- substitute s t@(RFun ((_ × RFun args _) L.: L.Nil) _) = ELam (map fst args) (substitute' t s t)
+--   where
+--     substitute' :: RType -> Substitution -> RType -> Expr
+--     substitute' tt (SApp s ss) (RFun args r)
+--       | Just t <- labeltype s tt = case t × ss of
+--           (RFun (Cons a Nil) _ × Cons (SArg b) Nil)    -> EApp (EVar s) (EVar b L.: Nil)
+--           (RFun (Cons a Nil) _ × Cons Placeholder Nil) -> EApp (EVar s) (EPlaceholder L.: Nil)
+--           (RFun args' _ × ss) -> EApp (EVar s) (map (\(s' × (_ × t)) -> substitute' tt s' t) (L.zip ss args'))
+--           _ -> EVar "error1"
+--       | otherwise = EVar ("undefined: " <> s <> " in " <> show tt)
+--     substitute' tt (SArg a) _ = EVar a
+--     substitute' tt Placeholder _ = EPlaceholder
+--     substitute' tt _ _ = EVar "error2"
+-- substitute _ _ = EVar "error3"
 
 --------------------------------------------------------------------------------
 
@@ -294,13 +305,29 @@ extract _ = Nothing
 
 --------------------------------------------------------------------------------
 
+-- exprToJS :: forall eff st. Expr -> Maybe String
+-- exprToJS (EVar x)   = Just x
+-- exprToJS (ELam a e) = do
+--   e' <- exprToJS e
+--   pure $ "function(" <> joinWith ", " (A.fromFoldable a) <> ") { return (" <> e' <> "); }"
+-- exprToJS (EApp f as) = do
+--   f'  <- exprToJS f
+--   as' <- traverse exprToJS as
+--   pure $ "(" <> f' <> ")(" <> joinWith", " (A.fromFoldable as') <> ");"
+-- exprToJS EPlaceholder = Nothing
+
 exprToJS :: forall eff st. Expr -> Maybe String
 exprToJS (EVar x)   = Just x
 exprToJS (ELam a e) = do
   e' <- exprToJS e
-  pure $ "function(" <> joinWith ", " (A.fromFoldable a) <> ") { return (" <> e' <> "); }"
+  pure $ "function(" <> show a <> ") { return (" <> e' <> "); }"
 exprToJS (EApp f as) = do
   f'  <- exprToJS f
-  as' <- traverse exprToJS as
-  pure $ "(" <> f' <> ")(" <> joinWith", " (A.fromFoldable as') <> ");"
+  as' <- exprToJS as
+  pure $ "(" <> f' <> ")(" <> as' <> ");"
 exprToJS EPlaceholder = Nothing
+
+testJSFun = jsFunFromString "function(a) { return function(b) { return a + b; } }"
+
+testJSFunApply :: Number
+testJSFunApply = applyJSFun testJSFun [ unsafeCoerce 5.0, unsafeCoerce 5.0 ]
