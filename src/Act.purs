@@ -477,10 +477,14 @@ firstJust as f = go (L.fromFoldable as)
 --         offset _       = 0.0
 
 uirect :: forall eff st. Rect -> Component eff st
-uirect (bx × by × bw × bh) = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
+uirect (bx × by × bw × bh)
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
+  | otherwise            = g [] []
 
 uirectDashed :: forall eff st. Rect -> Component eff st
-uirectDashed (bx × by × bw × bh) = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+uirectDashed (bx × by × bw × bh)
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+  | otherwise            = g [] []
 
 data UILabel = UILabelLeft String | UILabelRight String
 
