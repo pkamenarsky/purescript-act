@@ -295,38 +295,42 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
-        ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
-        ext (ox × oy) external = map ext' (indexedRange external)
+
+        -- ext (ox × oy) external = map ext' (indexedRange external)
+          -- where
+        ext :: Vec -> (Int × Label × RType) -> SnapComponent eff
+        ext (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
+          [ onMouseDrag \e -> case e of
+              DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+              DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+              DragEnd   e -> do
+                modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
+
+                case snap (evalSnapCmp children) (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+                  Just (Left f) -> modify (f l t)
+                  _             -> pure unit
+          ]
+          [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
+        ext (ox × oy) (i × l × t) = do
+          ST.modify $ M.insert l (pos i)
+          pure $ g
+            [ onMouseDrag \e -> case e of
+                DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                DragEnd   e -> do
+                  modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
+
+                  case snap (evalSnapCmp children) (Right (e.pageX × e.pageY)) of
+                    Just (Right f) -> modify (f l t)
+                    _              -> pure unit
+            ]
+            [ uicircle (pos i) (UILabelLeft $ show t) ]
           where
-            ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
-              [ onMouseDrag \e -> case e of
-                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> do
-                    modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
-
-                    case snap (evalSnapCmp children) (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
-                      Just (Left f) -> modify (f l t)
-                      _             -> pure unit
-              ]
-              [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
-            ext' (i × l × t) = g
-              [ onMouseDrag \e -> case e of
-                  DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                  DragEnd   e -> do
-                    modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
-
-                    case snap (evalSnapCmp children) (Right (e.pageX × e.pageY)) of
-                      Just (Right f) -> modify (f l t)
-                      _              -> pure unit
-              ]
-              [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft $ show t) ]
+            pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
-        inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
-          ST.modify $ M.insert l (pos i)
-          lift $ snappableCircle 10.0 (pos i) (insertArg ai) $ g []
+        inc incTypes = lift $ g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
+          snappableCircle 10.0 (pos i) (insertArg ai) $ g []
             [ uicircle (pos i) (UILabelRight $ show t) ]
           where
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
@@ -347,10 +351,12 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
                 childCmp' <- childCmp
+                exts      <- traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)
+
                 lift $ snappableRect shrunkBounds insertChild $ g [] $ concat
                   [ [ uirect bounds ]
                   , [ childCmp' ]
-                  , ext (ix × (iy + gap)) (A.fromFoldable args)
+                  , exts
                   ]
                 where
                   childCmp = case s of
