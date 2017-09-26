@@ -515,21 +515,8 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a b. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> b × Component eff st) -> ((Rect -> Maybe a) × Array b × Component eff st)
-subdivide' (bx × by × bw × bh) snapf as f = snap × bs × (g [] cmps)
-  where
-     count     = A.length as
-     cx i      = bx + (i + 1.0) * gap + i * cw
-     cw        = (bw - (gap * (tn count + 1.0))) / tn count
-     cy        = by + gap
-
-     rects     = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
-     bs × cmps = unzip $ map (\(i × a × r) -> f r i a) rects
-
-     snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
-
-subdivide'' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Component eff st)
-subdivide'' (bx × by × bw × bh) snapf as f = do
+subdivide' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Component eff st)
+subdivide' (bx × by × bw × bh) snapf as f = do
    cmps <- flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
    pure $ g [] cmps
    where
@@ -595,12 +582,12 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
   where
     typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
     typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
-      | Just (incoming × children) <- extract rtype = do
-          chs <- snch
+      | Just (incTypes × chTypes) <- extract rtype = do
+          children' <- children
           pure $ g [] $ concat
             [ [ uirect bounds ]
-            , inc (A.fromFoldable incoming)
-            , [ chs ]
+            , inc (A.fromFoldable incTypes)
+            , [ children' ]
             ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
@@ -647,10 +634,9 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           | otherwise = pure $ g [] []
         child _ _ _ = pure $ g [] []
 
-        -- TODO: very inefficient
-        snch :: SnapComponent eff
-        snch = do
-          subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) child
+        children :: SnapComponent eff
+        children = do
+          subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
@@ -668,7 +654,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                    case snap snch (e.pageX × e.pageY × 200.0 × 100.0) of
+                    case snap children (e.pageX × e.pageY × 200.0 × 100.0) of
                       Just f  -> modify (f l t)
                       Nothing -> pure unit
               ]
