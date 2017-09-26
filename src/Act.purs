@@ -329,14 +329,25 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
-        inc incTypes = lift $ g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
-          snappableCircle 10.0 (pos i) (insertArg ai) $ g []
-            [ uicircle (pos i) (UILabelRight $ show t) ]
+        inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
+          ctx <- ST.get
+          lift $ snappableCircle 10.0 (pos i) (insertArg ai) $ g [] $ concat
+            [ [ uicircle (pos i) (UILabelRight $ show t) ]
+            , case connected ctx ai of
+                Just pos' -> [ line pos' (pos i) ]
+                Nothing   -> []
+            ]
           where
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
             insertArg (RArgIndex ai) l t st = flip (over substs) st \sss -> if L.length sss == 0
               then sss
               else fromMaybe sss (L.updateAt ai (SArg l) sss)
+
+            connected ctx (RArgIndex ai) = do
+              l' <- case (st ^. substs) L.!! ai of
+                Just (SArg l') -> pure l'
+                _ -> Nothing
+              M.lookup l' ctx
 
         children :: SnapComponent eff
         children = g [] <$> subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
