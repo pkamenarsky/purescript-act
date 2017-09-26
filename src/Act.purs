@@ -97,11 +97,11 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-   $ [ snapValue $ evalSnapCmp $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
+   $ [ snapValue $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ evalSnapCmp $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text $ show st.substs ]
  , state \st -> code [] [ text st.debug ]
@@ -263,10 +263,8 @@ snapValue (SnapM _ a) = a
 
 type AppF = Label -> RType -> AppState -> AppState
 
-type SnapComponent eff = ST.StateT Context (SnapM (Either Rect Vec) (Either AppF AppF)) (Component eff AppState)
-
-evalSnapCmp :: forall eff. SnapComponent eff -> SnapM (Either Rect Vec) (Either AppF AppF) (Component eff AppState)
-evalSnapCmp = flip ST.evalStateT M.empty
+type SnapComponent'    = SnapM (Either Rect Vec) (Either AppF AppF)
+type SnapComponent eff = SnapComponent' (Component eff AppState)
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
 snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
@@ -295,10 +293,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
-
-        -- ext (ox × oy) external = map ext' (indexedRange external)
-          -- where
-        ext :: Vec -> (Int × Label × RType) -> SnapComponent eff
+        ext :: Vec -> (Int × Label × RType) -> ST.StateT Context SnapComponent' (Component eff AppState)
         ext (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
           [ onMouseDrag \e -> case e of
               DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -306,7 +301,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               DragEnd   e -> do
                 modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                case snap (evalSnapCmp children) (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+                case snap children (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
                   Just (Left f) -> modify (f l t)
                   _             -> pure unit
           ]
@@ -320,7 +315,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                 DragEnd   e -> do
                   modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                  case snap (evalSnapCmp children) (Right (e.pageX × e.pageY)) of
+                  case snap children (Right (e.pageX × e.pageY)) of
                     Just (Right f) -> modify (f l t)
                     _              -> pure unit
             ]
@@ -330,8 +325,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
         inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
-          ctx <- ST.get
-          lift $ snappableCircle 10.0 (pos i) (insertArg ai) $ g [] $ concat
+          snappableCircle 10.0 (pos i) (insertArg ai) $ g [] $ concat
             [ [ uicircle (pos i) (UILabelRight $ show t) ]
             , case connected ctx ai of
                 Just pos' -> [ line pos' (pos i) ]
@@ -361,18 +355,18 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
             child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
-                childCmp' <- childCmp
-                exts      <- traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)
+                exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+                childCmp'   <- childCmp ctx'
 
-                lift $ snappableRect shrunkBounds insertChild $ g [] $ concat
+                snappableRect shrunkBounds insertChild $ g [] $ concat
                   [ [ uirect bounds ]
                   , [ childCmp' ]
                   , exts
                   ]
                 where
-                  childCmp = case s of
+                  childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
-                      Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                      Just t' -> typeComponent' tt (M.union ctx ctx') shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
                       Nothing -> pure $ uirectDashed shrunkBounds
                     _ -> pure $ uirectDashed shrunkBounds
 
