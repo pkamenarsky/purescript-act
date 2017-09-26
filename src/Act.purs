@@ -281,15 +281,6 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
-        inc :: Array (RArgIndex × Label × RType) -> Array (Component eff AppState)
-        inc incoming = flip map (indexedRange incoming) \(i × ai × l × t) -> g
-          [ onMouseDrag \e -> case e of
-             DragStart e -> modify \st -> st { debug = "START" }
-             DragMove  e -> modify \st -> st { debug = "MOVE" }
-             DragEnd   e -> modify \st -> st { debug = "END" }
-          ]
-          [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
-
         ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext (ox × oy) external = map ext' (indexedRange external)
           where
@@ -305,7 +296,22 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                       Nothing -> pure unit
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
-            ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+            ext' (i × l × t) = g
+              [ onMouseDrag \e -> case e of
+                 DragStart e -> modify \st -> st { debug = "START" }
+                 DragMove  e -> modify \st -> st { debug = "MOVE" }
+                 DragEnd   e -> modify \st -> st { debug = "END" }
+              ]
+              [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t) ]
+
+        inc :: Array (RArgIndex × Label × RType) -> Array (Component eff AppState)
+        inc incoming = flip map (indexedRange incoming) \(i × ai × l × t) -> g
+          [ onMouseDrag \e -> case e of
+             DragStart e -> modify \st -> st { debug = "START" }
+             DragMove  e -> modify \st -> st { debug = "MOVE" }
+             DragEnd   e -> modify \st -> st { debug = "END" }
+          ]
+          [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
 
         children :: SnapComponent' (Array (Component eff AppState))
         children = do
