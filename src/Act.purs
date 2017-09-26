@@ -324,15 +324,12 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft $ show t) ]
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
-        inc incTypes = lift $ g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
-          snappableCircle 10.0 (bx - (gap * 3.0) × by + (tn i * gap)) (insertArg ai) $ g
-            [ onMouseDrag \e -> case e of
-               DragStart e -> modify \st -> st { debug = "START" }
-               DragMove  e -> modify \st -> st { debug = "MOVE" }
-               DragEnd   e -> modify \st -> st { debug = "END" }
-            ]
-            [ uicircle (bx - (gap * 3.0) × by + (tn i * gap)) (UILabelRight $ show t) ]
+        inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
+          ST.modify $ M.insert l (pos i)
+          lift $ snappableCircle 10.0 (pos i) (insertArg ai) $ g []
+            [ uicircle (pos i) (UILabelRight $ show t) ]
           where
+            pos i = (bx - (gap * 3.0) × by + (tn i * gap))
             insertArg (RArgIndex ai) l t st = flip (over substs) st \sss -> if L.length sss == 0
               then sss
               else fromMaybe sss (L.updateAt ai (SArg l) sss)
