@@ -417,18 +417,24 @@ r3 = runType $ fun
 
 --------------------------------------------------------------------------------
 
-extract :: RType -> Maybe (L.List (Label × RType) × L.List (Label × RType))
-extract (RFun args (RConst (Const "Component"))) = Just (incoming args L.Nil × children args L.Nil)
+newtype RArgIndex = RArgIndex Int
+
+instance showRArgIndex :: Show RArgIndex where
+  show (RArgIndex index) = show index
+
+
+extract :: RType -> Maybe (L.List (RArgIndex × Label × RType) × L.List (RArgIndex × Label × RType))
+extract (RFun args (RConst (Const "Component"))) = Just (incoming 0 args L.Nil × children 0 args L.Nil)
   where
-    incoming :: L.List (Label × RType) -> L.List (Label × RType) -> L.List (Label × RType)
-    incoming (L.Cons (_ × RFun _ _) ls) ts = incoming ls ls
-    incoming (L.Cons t ls) ts = t L.: incoming ls ts
-    incoming L.Nil ts = ts
+    incoming :: Int -> L.List (Label × RType) -> L.List (RArgIndex × Label × RType) -> L.List (RArgIndex × Label × RType)
+    incoming index (L.Cons (_ × RFun _ _) ls) ts = incoming (index + 1) ls ts
+    incoming index (L.Cons t ls) ts = (RArgIndex index × t) L.: incoming (index + 1) ls ts
+    incoming index L.Nil ts = ts
     
-    children :: L.List (Label × RType) -> L.List (Label × RType) -> L.List (Label × RType)
-    children (L.Cons t@(_ × RFun _ _) ls) ts = t L.: children ls ls
-    children (L.Cons t ls) ts = children ls ts
-    children L.Nil ts = ts
+    children :: Int -> L.List (Label × RType) -> L.List (RArgIndex × Label × RType) -> L.List (RArgIndex × Label × RType)
+    children index (L.Cons t@(_ × RFun _ _) ls) ts = (RArgIndex index × t) L.: children (index + 1) ls ts
+    children index (L.Cons t ls) ts = children (index + 1) ls ts
+    children index L.Nil ts = ts
 extract _ = Nothing
 
 --------------------------------------------------------------------------------
