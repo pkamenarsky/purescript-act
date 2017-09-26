@@ -570,7 +570,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
     
         child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> CmpAppState eff
-        child st bounds@(ix × iy × _ × _) index (s × ai × l × t@(RFun args _))
+        child st bounds@(ix × iy × _ × _) index (s × _ × l × t@(RFun args _))
           | isHOC t = (×) snap' $ g [] $ concat
             [ [ uirect bounds ]
             , [ snd childCmp ]
@@ -594,13 +594,22 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
         snch :: AppState -> CmpAppState eff
         snch st = snap' × cmp
           where
-            snap × snaps × cmp = subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
+            zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
+            zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
+              Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
+              Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
+            zipSubsts ss L.Nil = L.Nil
+
+            snap × snaps × cmp = subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) (child st)
 
             snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
             snap' bounds' = case firstJust snaps (\f -> f bounds') of
               Just f   -> Just f
               Nothing -> case snap bounds' of
-                Just _  -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
+                -- Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
+                Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> over substs (\sss -> if L.length sss == 0
+                  then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
+                  else unsafeUpdateAtL ai sss (SApp l (repeat (argCount t) Placeholder))) st)
                 Nothing -> Nothing
 
             repeat :: forall a. Int -> a -> L.List a
