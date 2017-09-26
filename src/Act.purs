@@ -100,7 +100,7 @@ ui = state \st -> div
    $ [ snapValue $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
-       -- Just (DragConn ds) -> [ line ds.start ds.end ]
+       Just (DragConn ds) -> [ line ds.start ds.end ]
        Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text $ show st.substs ]
@@ -310,8 +310,12 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           ST.modify $ M.insert l (pos i)
           pure $ g
             [ onMouseDrag \e -> case e of
-                DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-                DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+                DragStart e -> modify \st -> st { dragState = Just $ DragConn { start: meToV e, end: meToV e } }
+                DragMove  e -> modify \st -> st
+                  { dragState = flip map st.dragState \ds -> case ds of
+                      DragConn dc -> DragConn $ dc { end = meToV e }
+                      _ -> ds
+                  }
                 DragEnd   e -> do
                   modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
