@@ -528,6 +528,19 @@ subdivide' (bx × by × bw × bh) snapf as f = snap × bs × (g [] cmps)
 
      snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
 
+subdivide'' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM Rect a (SnapM c b (Component eff st))
+subdivide'' (bx × by × bw × bh) snapf as f = undefined -- snap × bs × (g [] cmps)
+--   where
+--      count     = A.length as
+--      cx i      = bx + (i + 1.0) * gap + i * cw
+--      cw        = (bw - (gap * (tn count + 1.0))) / tn count
+--      cy        = by + gap
+-- 
+--      rects     = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
+--      bs × cmps = unzip $ map (\(i × a × r) -> f r i a) rects
+-- 
+--      snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
+
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
@@ -545,14 +558,32 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
-type CmpAppState eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
-
 type Context = M.Map Label Vec
 
-typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
+data SnapM c b a = SnapM (c -> Maybe b) a
+
+instance applicativeSnapM :: Applicative (SnapM c b) where
+  pure a = SnapM (const Nothing) a
+
+instance functorSnapM :: Functor (SnapM c b) where
+  map f (SnapM s a) = SnapM s (f a)
+
+instance applySnapM :: Apply (SnapM c b) where
+  apply (SnapM s f) (SnapM s' a) = SnapM (\r -> s r <|> s' r) (f a)
+
+instance bindSnapM :: Bind (SnapM c b) where
+  bind (SnapM s a) f = SnapM (\r -> s r <|> s' r) a'
+    where
+      SnapM s' a' = f a
+
+type SnapComponent eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
+
+-- type SnapComponent eff = SnapM (Rect × Label × RType) (AppState -> AppState) (Component eff AppState)
+
+typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
   where
-    typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
+    typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
     typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
       | Just (incoming × children) <- extract rtype = (×) snap $ g [] $ concat
           [ [ uirect bounds ]
@@ -573,7 +604,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           ]
           [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
     
-        child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> CmpAppState eff
+        child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
         child st bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
           | isHOC t = (×) snap' $ g [] $ concat
             [ [ uirect bounds ]
@@ -595,7 +626,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
         child _ _ _ _ = const Nothing × g [] []
 
         -- TODO: very inefficient
-        snch :: AppState -> CmpAppState eff
+        snch :: AppState -> SnapComponent eff
         snch st = snap' × cmp
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
