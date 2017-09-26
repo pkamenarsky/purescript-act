@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Eff.Console
 import Control.Monad.Free
+import Control.Monad.State as ST
 import Data.Argonaut.Core
 import Data.Array
 import Data.Either
@@ -257,8 +258,9 @@ snapValue (SnapM _ a) = a
 
 --------------------------------------------------------------------------------
 
-type SnapComponent' t  = SnapM (Either Rect Vec) (Either (Label -> RType -> AppState -> AppState) (Label -> RType -> AppState -> AppState)) t
-type SnapComponent eff = SnapComponent' (Component eff AppState)
+type AppF = Label -> RType -> AppState -> AppState
+
+type SnapComponent eff = SnapM (Either Rect Vec) (Either AppF AppF) (Component eff AppState)
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
 snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
