@@ -14,7 +14,6 @@ import Data.Generic
 import Data.Traversable
 import Data.Lens
 import Data.Maybe
-import Data.Map as M
 import Data.Lens.Index
 import Data.Tuple
 import Type.Proxy
@@ -28,6 +27,7 @@ import DOM.Node.Types as D
 import Data.Array as A
 import Data.Int as I
 import Data.List as L
+import Data.Map as M
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
@@ -114,13 +114,14 @@ ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
    $ [ -- uicomponent L.Nil st.component
-       snd $ typeComponent st (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
+       snd $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snd $ typeComponent st ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snd $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
- , state \st -> code [] [ text st.debug ]
+ , state \st -> code [] [ text $ show st.substs ]
+ -- , state \st -> code [] [ text st.debug ]
  ]
 
 --------------------------------------------------------------------------------
@@ -540,15 +541,15 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
-type CmpAppState eff = (Rect -> Maybe (Label -> AppState -> AppState)) × Component eff AppState
+type CmpAppState eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
 
 type Context = M.Map Label Vec
 
-typeComponent :: forall eff. AppState -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
-typeComponent st r ss t = typeComponent' t r ss t
+typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
+typeComponent st ctx r ss t = typeComponent' t ctx r ss t
   where
-    typeComponent' :: RType -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
-    typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
+    typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> CmpAppState eff
+    typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
       | Just (incoming × children) <- extract rtype = (×) snap $ g [] $ concat
           [ [ uirect bounds ]
           , inc (A.fromFoldable incoming)
@@ -578,11 +579,11 @@ typeComponent st r ss t = typeComponent' t r ss t
             where
               childCmp = case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t' -> typeComponent' tt shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t'
+                  Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t'
                   Nothing -> const Nothing × uirectDashed shrunkBounds
                 _ -> const Nothing × uirectDashed shrunkBounds
 
-              snap' :: Rect -> Maybe (Label -> AppState -> AppState)
+              snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
               snap' = fst childCmp
 
               shrunkBounds = shrink childMargin bounds
@@ -595,12 +596,20 @@ typeComponent st r ss t = typeComponent' t r ss t
           where
             snap × snaps × cmp = subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipMaybe (st ^. substs) children) (child st)
 
-            snap' :: Rect -> Maybe (Label -> AppState -> AppState)
+            snap' :: Rect -> Maybe (Label -> RType -> AppState -> AppState)
             snap' bounds' = case firstJust snaps (\f -> f bounds') of
               Just f   -> Just f
               Nothing -> case snap bounds' of
-                Just _  -> Just (\l st -> set substs (L.Cons (SApp l L.Nil) L.Nil) st)
+                Just _  -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
                 Nothing -> Nothing
+
+            repeat :: forall a. Int -> a -> L.List a
+            repeat 0 _ = L.Nil
+            repeat n a = L.Cons a (repeat (n - 1) a)
+
+            argCount :: RType -> Int
+            argCount (RFun args _) = L.length args
+            argCount _ = 0
 
         ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext st (ox × oy) external = map ext' (indexedRange external)
@@ -611,7 +620,7 @@ typeComponent st r ss t = typeComponent' t r ss t
                   DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
-                    modify (fromMaybe (const id) ((fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0)) $ l)
+                    modify (fromMaybe (\_ _ -> id) ((fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0)) l t)
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)

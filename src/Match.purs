@@ -288,6 +288,11 @@ data Substitution = SApp Label (List Substitution)
                   | SArg Label
                   | Placeholder
 
+instance showSubstitution :: Show Substitution where
+   show Placeholder = "_"
+   show (SArg l)    = l
+   show (SApp l ss) = "(" <> l <> " " <> joinWith " " (map show $ A.fromFoldable ss) <> ")"
+                 
 _SApp :: Prism' Substitution (Label × List Substitution)
 _SApp = prism (\(l × s) -> SApp l s) $ \s -> case s of
   SApp l s -> Right (l × s)
