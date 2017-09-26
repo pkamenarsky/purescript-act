@@ -429,9 +429,11 @@ listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Componen
 listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
 testUI :: forall eff st. Component eff st
-testUI = div [ class_ "component-container" ]
-  [ -- listComponent tweets tweetComponent
-    listComponent'
+testUI = div [ class_ "component-split" ]
+  [ div [ class_ "component-container" ]
+    [ -- listComponent tweets tweetComponent
+      listComponent'
+    ]
   ]
 
 --------------------------------------------------------------------------------
