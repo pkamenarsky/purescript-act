@@ -570,7 +570,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
     
         child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> CmpAppState eff
-        child st bounds@(ix × iy × _ × _) index (s × _ × l × t@(RFun args _))
+        child st bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
           | isHOC t = (×) snap' $ g [] $ concat
             [ [ uirect bounds ]
             , [ snd childCmp ]
@@ -579,7 +579,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             where
               childCmp = case s of
                 Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL index <<< _SApp' <<< _2) t'
+                  Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
                   Nothing -> const Nothing × uirectDashed shrunkBounds
                 _ -> const Nothing × uirectDashed shrunkBounds
 
@@ -609,7 +609,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                 -- Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> set substs (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil) st)
                 Just (_ × RArgIndex ai × _ × _) -> Just (\l t st -> over substs (\sss -> if L.length sss == 0
                   then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
-                  else unsafeUpdateAtL ai sss (SApp l (repeat (argCount t) Placeholder))) st)
+                  else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)) st)
                 Nothing -> Nothing
 
             repeat :: forall a. Int -> a -> L.List a
