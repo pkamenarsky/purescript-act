@@ -6,6 +6,7 @@ import Control.Monad.Eff
 import Control.Monad.Eff.Console
 import Control.Monad.Free
 import Control.Monad.State as ST
+import Control.Monad.Trans.Class
 import Data.Argonaut.Core
 import Data.Array
 import Data.Either
@@ -96,11 +97,11 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div
  []
  [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-   $ [ snapValue $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
+   $ [ snapValue $ evalSnapCmp $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs type2
      ]
   <> case st.dragState of
        -- Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ evalSnapCmp $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , state \st -> code [] [ text $ show st.substs ]
  , state \st -> code [] [ text st.debug ]
@@ -203,7 +204,7 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Array (Component eff st))
+subdivide' :: forall eff st a b c m. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m (Component eff st)) -> m (Array (Component eff st))
 subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
    where
       count     = A.length as
@@ -247,6 +248,8 @@ instance bindSnapM :: Bind (SnapM c b) where
     where
       SnapM s' a' = f a
 
+instance monadSnapM :: Monad (SnapM c b)
+
 snappable :: forall a b c. (c -> Maybe b) -> a -> SnapM c b a
 snappable f a = SnapM f a
 
@@ -260,14 +263,17 @@ snapValue (SnapM _ a) = a
 
 type AppF = Label -> RType -> AppState -> AppState
 
-type SnapComponent eff = SnapM (Either Rect Vec) (Either AppF AppF) (Component eff AppState)
+type SnapComponent eff = ST.StateT Context (SnapM (Either Rect Vec) (Either AppF AppF)) (Component eff AppState)
+
+evalSnapCmp :: forall eff. SnapComponent eff -> SnapM (Either Rect Vec) (Either AppF AppF) (Component eff AppState)
+evalSnapCmp = flip ST.evalStateT M.empty
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
 snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
   Left bounds' -> if intersect bounds bounds' then (Just (Left b)) else Nothing
   Right       _ -> Nothing
 
-snappableCircle :: forall a b c d. Number -> Vec -> b -> a -> SnapM (Either c Vec) (Either d b) a
+snappableCircle :: forall a b c d m. Number -> Vec -> b -> a -> SnapM (Either c Vec) (Either d b) a
 snappableCircle radius pos b a = flip SnapM a \pos' -> case pos' of
   Left     _ -> Nothing
   Right pos' -> if inradius radius pos pos' then (Just (Right b)) else Nothing
@@ -299,7 +305,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                    case snap children (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+                    case snap (evalSnapCmp children) (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
                       Just (Left f) -> modify (f l t)
                       _             -> pure unit
               ]
@@ -311,14 +317,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                    case snap children (Right (e.pageX × e.pageY)) of
+                    case snap (evalSnapCmp children) (Right (e.pageX × e.pageY)) of
                       Just (Right f) -> modify (f l t)
                       _              -> pure unit
               ]
               [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft $ show t) ]
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
-        inc incoming = g [] <$> flip traverse (indexedRange incoming) \(i × ai × l × t) -> do
+        inc incTypes = lift $ g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
           snappableCircle 10.0 (bx - (gap * 3.0) × by + (tn i * gap)) (insertArg ai) $ g
             [ onMouseDrag \e -> case e of
                DragStart e -> modify \st -> st { debug = "START" }
@@ -344,7 +350,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
                 childCmp' <- childCmp
-                snappableRect shrunkBounds insertChild $ g [] $ concat
+                lift $ snappableRect shrunkBounds insertChild $ g [] $ concat
                   [ [ uirect bounds ]
                   , [ childCmp' ]
                   , ext (ix × (iy + gap)) (A.fromFoldable args)
