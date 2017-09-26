@@ -515,10 +515,8 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Component eff st)
-subdivide' (bx × by × bw × bh) snapf as f = do
-   cmps <- flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
-   pure $ g [] cmps
+subdivide' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Array (Component eff st))
+subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
    where
       count     = A.length as
       cx i      = bx + (i + 1.0) * gap + i * cw
@@ -561,9 +559,8 @@ instance bindSnapM :: Bind (SnapM c b) where
     where
       SnapM s' a' = f a
 
--- type SnapComponent eff = (Rect -> Maybe (Label -> RType -> AppState -> AppState)) × Component eff AppState
-
-type SnapComponent eff = SnapM Rect (Label -> RType -> AppState -> AppState) (Component eff AppState)
+type SnapComponent' t  = SnapM Rect (Label -> RType -> AppState -> AppState) t
+type SnapComponent eff = SnapComponent' (Component eff AppState)
 
 snappable :: forall a b c. (c -> Maybe b) -> a -> SnapM c b a
 snappable f a = SnapM f a
@@ -577,6 +574,8 @@ snap (SnapM f _) c = f c
 snapValue :: forall a b c. SnapM c b a -> a
 snapValue (SnapM _ a) = a
 
+--------------------------------------------------------------------------------
+
 typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
   where
@@ -587,7 +586,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           pure $ g [] $ concat
             [ [ uirect bounds ]
             , inc (A.fromFoldable incTypes)
-            , [ children' ]
+            , children'
             ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
@@ -600,49 +599,6 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
              DragEnd   e -> modify \st -> st { debug = "END" }
           ]
           [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
-    
-        child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-        child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
-          | isHOC t = do
-            childCmp' <- childCmp
-            snappableRect shrunkBounds insertChild $ g [] $ concat
-              [ [ uirect bounds ]
-              , [ childCmp' ]
-              , ext (ix × (iy + gap)) (A.fromFoldable args)
-              ]
-            where
-              childCmp = case s of
-                Just (SApp fs ss) -> case labeltype fs tt of
-                  Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                  Nothing -> pure $ uirectDashed shrunkBounds
-                _ -> pure $ uirectDashed shrunkBounds
-
-              shrunkBounds = shrink childMargin bounds
-
-              insertChild l t st = flip (over substs) st \sss -> if L.length sss == 0
-                then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
-                else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)
-
-              repeat :: forall a. Int -> a -> L.List a
-              repeat 0 _ = L.Nil
-              repeat n a = L.Cons a (repeat (n - 1) a)
-              
-              argCount :: RType -> Int
-              argCount (RFun args _) = L.length args
-              argCount _ = 0
-
-          | otherwise = pure $ g [] []
-        child _ _ _ = pure $ g [] []
-
-        children :: SnapComponent eff
-        children = do
-          subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
-          where
-            zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
-            zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
-              Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
-              Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
-            zipSubsts ss L.Nil = L.Nil
 
         ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
         ext (ox × oy) external = map ext' (indexedRange external)
@@ -660,5 +616,48 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               ]
               [ uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight "HOC2") ]
             ext' (i × l × t) = uicircle (ox + gap × oy + (tn i * gap)) (UILabelRight $ show t)
+
+        children :: SnapComponent' (Array (Component eff AppState))
+        children = do
+          subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+          where
+            zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
+            zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
+              Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
+              Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
+            zipSubsts ss L.Nil = L.Nil
+    
+            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+            child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
+              | isHOC t = do
+                childCmp' <- childCmp
+                snappableRect shrunkBounds insertChild $ g [] $ concat
+                  [ [ uirect bounds ]
+                  , [ childCmp' ]
+                  , ext (ix × (iy + gap)) (A.fromFoldable args)
+                  ]
+                where
+                  childCmp = case s of
+                    Just (SApp fs ss) -> case labeltype fs tt of
+                      Just t' -> typeComponent' tt ctx shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                      Nothing -> pure $ uirectDashed shrunkBounds
+                    _ -> pure $ uirectDashed shrunkBounds
+
+                  shrunkBounds = shrink childMargin bounds
+
+                  insertChild l t st = flip (over substs) st \sss -> if L.length sss == 0
+                    then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
+                    else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)
+
+                  repeat :: forall a. Int -> a -> L.List a
+                  repeat 0 _ = L.Nil
+                  repeat n a = L.Cons a (repeat (n - 1) a)
+                  
+                  argCount :: RType -> Int
+                  argCount (RFun args _) = L.length args
+                  argCount _ = 0
+
+              | otherwise = pure $ g [] []
+            child _ _ _ = pure $ g [] []
       | otherwise = pure $ g [] []
     typeComponent' _ _ _ _ _ = pure $ g [] []
