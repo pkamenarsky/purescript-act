@@ -5,7 +5,6 @@ import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Eff.Console
 import Control.Monad.Free
-import Control.Monad.State as ST
 import Control.Monad.Trans.Class
 import Data.Argonaut.Core
 import Data.Array
@@ -24,6 +23,7 @@ import Match
 import Undefined
 import Component
 import Trace
+import Control.Monad.State as ST
 import DOM as D
 import DOM.Node.Types as D
 import Data.Array as A
@@ -103,8 +103,10 @@ ui = state \st -> div
        Just (DragConn ds) -> [ line ds.start ds.end ]
        Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
- , state \st -> code [] [ text $ show st.substs ]
- , state \st -> code [] [ text st.debug ]
+ , state \st -> case st.substs of
+     L.Cons s _ -> code [] [ text $ show $ substitute s st.rtype ]
+     _ -> code [] []
+ -- , state \st -> code [] [ text st.debug ]
  ]
 
 --------------------------------------------------------------------------------
