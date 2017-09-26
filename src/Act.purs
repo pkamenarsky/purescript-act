@@ -529,17 +529,14 @@ subdivide' (bx × by × bw × bh) snapf as f = snap × bs × (g [] cmps)
      snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
 
 subdivide'' :: forall eff st a b c. Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> SnapM c b (Component eff st)) -> SnapM c b (Component eff st)
-subdivide'' (bx × by × bw × bh) snapf as f = undefined -- snap × bs × (g [] cmps)
---   where
---      count     = A.length as
---      cx i      = bx + (i + 1.0) * gap + i * cw
---      cw        = (bw - (gap * (tn count + 1.0))) / tn count
---      cy        = by + gap
--- 
---      rects     = flip map (indexedRange as) \(i × a) -> i × a × (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap))
---      bs × cmps = unzip $ map (\(i × a × r) -> f r i a) rects
--- 
---      snap r'   = firstJust rects (\(_ × a × r) -> if intersect (snapf r) r' then Just a else Nothing)
+subdivide'' (bx × by × bw × bh) snapf as f = do
+   cmps <- flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
+   pure $ g [] cmps
+   where
+      count     = A.length as
+      cx i      = bx + (i + 1.0) * gap + i * cw
+      cw        = (bw - (gap * (tn count + 1.0))) / tn count
+      cy        = by + gap
 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
@@ -560,6 +557,7 @@ zipMaybe _ L.Nil = L.Nil
 
 type Context = M.Map Label Vec
 
+-- TODO: Product (Kleisli c (Maybe b)) (Identity a)
 data SnapM c b a = SnapM (c -> Maybe b) a
 
 instance applicativeSnapM :: Applicative (SnapM c b) where
@@ -587,10 +585,10 @@ snappableRect :: forall a b. Rect -> b -> a -> SnapM Rect b a
 snappableRect bounds b a = SnapM (\bounds' -> if intersect bounds bounds' then (Just b) else Nothing) a
 
 snap :: forall a b c. SnapM c b a -> c -> Maybe b
-snap = undefined
+snap (SnapM f _) c = f c
 
 snapValue :: forall a b c. SnapM c b a -> a
-snapValue = undefined
+snapValue (SnapM _ a) = a
 
 typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
 typeComponent st ctx r ss t = typeComponent' t ctx r ss t
@@ -598,7 +596,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
     typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
     typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
       | Just (incoming × children) <- extract rtype = do
-          chs <- snch st
+          chs <- snch
           pure $ g [] $ concat
             [ [ uirect bounds ]
             , inc (A.fromFoldable incoming)
@@ -616,14 +614,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
           ]
           [ uicircle (bx - gap × by + (tn i * gap)) (UILabelLeft $ show t) ]
     
-        child :: AppState -> Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-        child st bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
+        child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+        child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
           | isHOC t = do
             childCmp' <- childCmp
             snappableRect shrunkBounds insertChild $ g [] $ concat
               [ [ uirect bounds ]
               , [ childCmp' ]
-              , ext st (ix × (iy + gap)) (A.fromFoldable args)
+              , ext (ix × (iy + gap)) (A.fromFoldable args)
               ]
             where
               childCmp = case s of
@@ -647,12 +645,12 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               argCount _ = 0
 
           | otherwise = pure $ g [] []
-        child _ _ _ _ = pure $ g [] []
+        child _ _ _ = pure $ g [] []
 
         -- TODO: very inefficient
-        snch :: AppState -> SnapComponent eff
-        snch st = do
-          subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) (child st)
+        snch :: SnapComponent eff
+        snch = do
+          subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) children) child
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
@@ -660,8 +658,8 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
             zipSubsts ss L.Nil = L.Nil
 
-        ext :: AppState -> Vec -> Array (Label × RType) -> Array (Component eff AppState)
-        ext st (ox × oy) external = map ext' (indexedRange external)
+        ext :: Vec -> Array (Label × RType) -> Array (Component eff AppState)
+        ext (ox × oy) external = map ext' (indexedRange external)
           where
             ext' (i × l × t@(RFun _ (RConst (Const "Component")))) = g
               [ onMouseDrag \e -> case e of
@@ -670,7 +668,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                   DragEnd   e -> do
                     modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-                    case snap (snch st) (e.pageX × e.pageY × 200.0 × 100.0) of
+                    case snap snch (e.pageX × e.pageY × 200.0 × 100.0) of
                       Just f  -> modify (f l t)
                       Nothing -> pure unit
               ]
