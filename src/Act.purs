@@ -114,6 +114,10 @@ ui = state \st -> div
 
 --------------------------------------------------------------------------------
 
+repeat :: forall a. Int -> a -> L.List a
+repeat 0 _ = L.Nil
+repeat n a = L.Cons a (repeat (n - 1) a)
+
 arrayRange :: forall a. Array a -> Array Int
 arrayRange a = 0 .. (length a - 1)
 
@@ -385,10 +389,6 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                     then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
                     else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)
 
-                  repeat :: forall a. Int -> a -> L.List a
-                  repeat 0 _ = L.Nil
-                  repeat n a = L.Cons a (repeat (n - 1) a)
-                  
                   argCount :: RType -> Int
                   argCount (RFun args _) = L.length args
                   argCount _ = 0
@@ -409,27 +409,23 @@ type Tweet =
 tweet :: Tweet
 tweet =
   { user: "User1"
-  , text: "test text"
+  , text: "If the result of an expensive computation is invalidated by a small change to the input, the old result should be updated incrementally instead of reexecuting the whole computation."
   , date: "01.01.1999"
   }
 
 tweets :: Array Tweet
-tweets =
-  [ { user: "A"
-    , text: "test text"
-    , date: "01.01.1999"
-    }
-  ]
+tweets = A.fromFoldable $ repeat 10 tweet
 
 tweetComponent :: forall eff st. Tweet -> Component eff st
 tweetComponent tweet = div [ class_ "tweet" ]
   [ div [ class_ "user" ] [ text tweet.user ]
+  , div [ class_ "text" ] [ text tweet.text ]
   ]
 
 listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
-listComponent = undefined
+listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
 testUI :: forall eff st. Component eff st
 testUI = div []
-  [ tweetComponent tweet
+  [ listComponent tweets tweetComponent
   ]

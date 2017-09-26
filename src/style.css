@@ -1,9 +1,63 @@
+.test-container {
+    position: absolute;
+
+    top: 100px;
+    left: 100px;
+    width: 300px;
+    height: 156px;
+}
+
+.list {
+    position: absolute;
+
+    top: 100px;
+    left: 100px;
+    width: 300px;
+    height: 500px;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.list .cell {
+    position: relative;
+    height: 156px;
+}
+
 .tweet {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: 100%;
+
+    background-color: #f9f9f9;
     font-family: Helvetica, sans-serif;
 }
 
 .tweet .user {
+    position: absolute;
+    top: 16px;
+    left: 24px;
+
     font-size: 14px;
     font-weight: 700;
-    color: #000;
+    color: #0d90b9;
+}
+
+.tweet .text {
+    position: absolute;
+    top: 40px;
+    left: 24px;
+    right: 24px;
+    bottom: 40px;
+
+    line-height: 18px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
