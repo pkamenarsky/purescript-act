@@ -302,7 +302,7 @@ _SApp' :: Lens' Substitution (Label × List Substitution)
 _SApp' = lens ex (\_ (l × s) -> SApp l s)
   where
     ex (SApp l s) = l × s
-    ex _ = undefined
+    ex _ = "(_SApp' error)" × L.Nil
 
 substitute :: Substitution -> RType -> Expr
 substitute s t@(RFun args _) = ELam (map fst args) (substitute' t s t)

@@ -587,7 +587,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               snap' = fst childCmp
 
               shrunkBounds = shrink childMargin bounds
-          | otherwise = undefined
+          | otherwise = const Nothing × g [] []
         child _ _ _ _ = const Nothing × g [] []
 
         -- TODO: very inefficient
