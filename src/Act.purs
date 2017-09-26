@@ -312,13 +312,25 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
         inc incoming = g [] <$> flip traverse (indexedRange incoming) \(i × ai × l × t) -> do
-          pure $ g
+          snappableCircle 10.0 (bx - (gap * 3.0) × by + (tn i * gap)) insertArg $ g
             [ onMouseDrag \e -> case e of
                DragStart e -> modify \st -> st { debug = "START" }
                DragMove  e -> modify \st -> st { debug = "MOVE" }
                DragEnd   e -> modify \st -> st { debug = "END" }
             ]
             [ uicircle (bx - (gap * 3.0) × by + (tn i * gap)) (UILabelRight $ show t) ]
+          where
+            insertArg l t st = flip (over substs) st \sss -> if L.length sss == 0
+              then undefined -- (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
+              else undefined -- fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)
+
+            repeat :: forall a. Int -> a -> L.List a
+            repeat 0 _ = L.Nil
+            repeat n a = L.Cons a (repeat (n - 1) a)
+            
+            argCount :: RType -> Int
+            argCount (RFun args _) = L.length args
+            argCount _ = 0
 
         children :: SnapComponent eff
         children = g [] <$> subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
