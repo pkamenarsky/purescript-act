@@ -1,7 +1,7 @@
 * TODO
-** disallow incompatible type connections
-** type inference
 ** ExternalComponent?
+** DONE disallow incompatible type connections
+** DONE type inference
 * type-directed search
 ** every component is a pure function a -> b -> (c -> d) -> ... -> Component st
 ** builder infers from type signature which components fit
