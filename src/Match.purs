@@ -175,11 +175,15 @@ substitute tt subst = lam tt subst
       | Just t <- labeltype f tt = case t of
           RFun args _ -> EApp (EVar f) $ flip map (L.zip args xs) \((l × _) × x) -> case labeltype l tt of
             Just t' -> lam t' x
-            Nothing -> EVar "error: type"
-          _           -> EVar "error: wrons SApp"
-      | otherwise = EVar "error: type"
+            Nothing -> EVar "substitute' error: labeltype"
+          _           -> EVar "substitute' error: invalid SApp"
+      | otherwise = EVar "substitute' error: labeltype"
     substitute' (SArg a)    = EVar a
     substitute' Placeholder = EPlaceholder
+
+substituteC :: RType -> Substitution -> Expr
+substituteC (RFun ((_ × tt@(RFun args _)) L.: Nil) _) subst = substitute tt subst
+substituteC _ _ = EVar "substituteC error: no RFun"
 
 --------------------------------------------------------------------------------
 

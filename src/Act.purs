@@ -107,7 +107,7 @@ ui = state \st -> div
        Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
        _ -> []
  , case st.substs of
-     L.Cons s _ -> code [] [ text $ show s <> " # " <> show (substitute st.rtype s) ]
+     L.Cons s _ -> code [] [ text $ show s <> " # " <> show (substituteC st.rtype s) ]
      _ -> code [] []
  -- , state \st -> code [] [ text st.debug ]
  ]
