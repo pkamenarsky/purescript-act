@@ -22,8 +22,8 @@ type Path = Array PathElement
 radius :: String
 radius = "15"
 
-pathToString :: Tuple Number Number -> Path -> String
-pathToString (Tuple x y) = joinWith "" <<< map pe
+pathToString :: Path -> String
+pathToString = joinWith " " <<< map pe
  where
    pe TL    = "q 0 -" <> radius <> " " <> radius <> " -" <> radius
    pe TR    = "q " <> radius <> " 0 " <> radius <> " " <> radius
