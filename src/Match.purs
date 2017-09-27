@@ -133,18 +133,18 @@ componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] compone
 type Label = String
 
 data Expr = EVar Label
-          | EApp Expr Expr
-          -- | EApp Expr (List Expr)
-          -- | ELam (List Label) Expr
-          | ELam Label Expr
+          -- | EApp Expr Expr
+          | EApp Expr (List Expr)
+          | ELam (List Label) Expr
+          -- | ELam Label Expr
           | EPlaceholder
 
 instance showExpr :: Show Expr where
   show (EVar v)     = v
-  -- show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
-  show (EApp f x)   = show f <> " " <> show x
-  -- show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
-  show (ELam a e)   = "(λ" <> show a <> ". " <> show e <> ")"
+  show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
+  -- show (EApp f x)   = show f <> " " <> show x
+  show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
+  -- show (ELam a e)   = "(λ" <> show a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
 data Substitution = SApp Label (List Substitution)
@@ -167,22 +167,23 @@ _SApp' = lens ex (\_ (l × s) -> SApp l s)
     ex (SApp l s) = l × s
     ex _ = "(_SApp' error)" × L.Nil
 
-substitute :: Substitution -> RType -> Expr
-substitute _ _ = EPlaceholder
--- substitute s t@(RFun ((_ × RFun args _) L.: L.Nil) _) = ELam (map fst args) (substitute' t s t)
---   where
---     substitute' :: RType -> Substitution -> RType -> Expr
---     substitute' tt (SApp s ss) (RFun args r)
---       | Just t <- labeltype s tt = case t × ss of
---           (RFun (Cons a Nil) _ × Cons (SArg b) Nil)    -> EApp (EVar s) (EVar b L.: Nil)
---           (RFun (Cons a Nil) _ × Cons Placeholder Nil) -> EApp (EVar s) (EPlaceholder L.: Nil)
---           (RFun args' _ × ss) -> EApp (EVar s) (map (\(s' × (_ × t)) -> substitute' tt s' t) (L.zip ss args'))
---           _ -> EVar "error1"
---       | otherwise = EVar ("undefined: " <> s <> " in " <> show tt)
---     substitute' tt (SArg a) _ = EVar a
---     substitute' tt Placeholder _ = EPlaceholder
---     substitute' tt _ _ = EVar "error2"
--- substitute _ _ = EVar "error3"
+substitute :: RType -> Substitution -> Expr
+substitute tt subst = lam tt subst
+  where
+    lam :: RType -> Substitution -> Expr
+    lam (RFun args _) subst = ELam (map fst args) (substitute' subst)
+    lam _ subst             = substitute' subst
+
+    substitute' :: Substitution -> Expr
+    substitute' (SApp f xs)
+      | Just t <- labeltype f tt = case t of
+          RFun args _ -> EApp (EVar f) $ flip map (L.zip args xs) \((l × _) × x) -> case labeltype l tt of
+            Just t' -> lam t' x
+            Nothing -> EVar "error: type"
+          _           -> EVar "error: wrons SApp"
+      | otherwise = EVar "error: type"
+    substitute' (SArg a)    = EVar a
+    substitute' Placeholder = EPlaceholder
 
 --------------------------------------------------------------------------------
 
@@ -239,10 +240,10 @@ r0 = runType $ fun
   component
 
 s0 :: Expr
-s0 = substitute (SApp "a3" (SArg "a1" L.: Nil)) r0
+s0 = substitute r0 (SApp "a3" (SArg "a1" L.: Nil))
 
 t1 :: forall a. (a -> C) -> C -> ((a -> C) -> C) -> C
-t1 = \a3 a4 a5 -> a5 (\a2 -> a3 a2)
+t1 = \a3 a4 a5 -> a5 (\a1 -> a3 a1)
 
 r1 :: RType
 r1 = runType $ fun
@@ -253,7 +254,7 @@ r1 = runType $ fun
   component
 
 s1 :: Expr
-s1 = substitute (SApp "a5" ((SApp "a3" (SArg "a2" L.: Nil)) L.: Nil)) r1
+s1 = substitute r1 (SApp "a5" ((SApp "a3" (SArg "a2" L.: Nil)) L.: Nil))
 
 t2 :: forall a. a -> C -> (((a -> C) -> (a -> C) -> C) -> C) -> C
 t2 = \a5 a6 a7 -> a7 (\a2 a3 -> a2 a5)
@@ -267,7 +268,7 @@ r2 = runType $ fun
   component
 
 s2 :: Expr
-s2 = substitute (SApp "a7" ((SApp "a2" (SArg "a5" L.: Nil)) L.: Nil)) r2
+s2 = substitute r2 (SApp "a7" ((SApp "a2" (SArg "a5" L.: Nil)) L.: Nil))
 
 t3 :: forall a. a -> C -> (((a -> C) -> C) -> ((a -> C) -> C) -> C) -> C
 t3 = \a2 a3 a4 -> a4 (\x -> x a2) (\x -> a3)
@@ -317,20 +318,13 @@ extract _ = Nothing
 -- exprToJS EPlaceholder = Nothing
 
 exprToJS :: forall eff st. Expr -> Maybe String
-exprToJS (EVar x)   = Just x
-exprToJS (ELam a e) = do
-  e' <- exprToJS e
-  pure $ "function(" <> a <> ") { return " <> e' <> "; }"
-exprToJS (EApp f as) = do
-  f'  <- exprToJS f
-  as' <- exprToJS as
-  pure $ "(" <> f' <> ")(" <> as' <> ")"
-exprToJS EPlaceholder = Nothing
-
-testJSFun = jsFunFromString "function(a) { return function(b) { return a + b; } }"
-
-listComponentExpr :: Expr
-listComponentExpr = ELam "listC" (ELam "tweetC" (ELam "tweets" (EApp (EApp (EVar "listC") (EVar "tweetC")) (EVar "tweets"))))
-
-testJSFunApply :: Number
-testJSFunApply = applyJSFun testJSFun [ unsafeCoerce 5.0, unsafeCoerce 5.0 ]
+exprToJS _ = Nothing
+-- exprToJS (EVar x)   = Just x
+-- exprToJS (ELam a e) = do
+--   e' <- exprToJS e
+--   pure $ "function(" <> a <> ") { return " <> e' <> "; }"
+-- exprToJS (EApp f as) = do
+--   f'  <- exprToJS f
+--   as' <- exprToJS as
+--   pure $ "(" <> f' <> ")(" <> as' <> ")"
+-- exprToJS EPlaceholder = Nothing

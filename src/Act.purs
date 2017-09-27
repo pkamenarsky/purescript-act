@@ -94,7 +94,7 @@ main = void (elm' >>= RD.render ui')
 --------------------------------------------------------------------------------
 
 mainUI :: forall eff. Component eff AppState
-mainUI = div [] [ testUI ]
+mainUI = div [] [ {- testUI -} ui ]
 
 ui :: forall eff. Component eff AppState
 ui = state \st -> div
@@ -465,7 +465,7 @@ tweetsR :: Ref'
 tweetsR = mkRef' tweets
 
 listComponentExpr :: Expr
-listComponentExpr = ELam "listC" (ELam "tweets" (ELam "tweetC" (EApp (EApp (EVar "listC") (EVar "tweets")) (EVar "tweetC"))))
+listComponentExpr = undefined -- ELam "listC" (ELam "tweets" (ELam "tweetC" (EApp (EApp (EVar "listC") (EVar "tweets")) (EVar "tweetC"))))
 
 listComponent' :: forall eff st. Component eff st
 listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]
