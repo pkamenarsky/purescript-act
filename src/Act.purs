@@ -64,6 +64,7 @@ type AppState =
   , dragState :: Maybe DragState
   , rtype     :: RType
   , substs    :: L.List Substitution
+  , specs     :: M.Map Var Const
   }
 
 _substs :: Lens' AppState (L.List Substitution)
@@ -78,6 +79,7 @@ emptyAppState =
   , dragState : Nothing
   , rtype     : rtypeFromRefs refArray -- type2
   , substs    : L.Nil
+  , specs     : M.empty
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -357,7 +359,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
             insertArg t (RArgIndex ai) l t' st = flip (over substs) st \sss -> if L.length sss == 0
               then sss
-              else trace_ ("t: " <> show t <> ", t': " <> show t') $ if t == t'
+              else if t == t'
                 then fromMaybe sss (L.updateAt ai (SArg l) sss)
                 else sss
 
@@ -459,7 +461,7 @@ componentFromRefs e args
 listCR :: Ref
 listCR = mkRef listCT listComponent 
   where
-    listCT = fun [ pure $ array tweetT, fun [ pure tweetT ] component ] component
+    listCT = fun [ pure $ array a, fun [ pure a ] component ] component
 
     listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
     listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]

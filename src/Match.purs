@@ -185,6 +185,19 @@ substituteC :: RType -> Substitution -> Expr
 substituteC (RFun ((_ × tt@(RFun args _)) L.: Nil) _) subst = substitute tt subst
 substituteC _ _ = EVar "substituteC error: no RFun"
 
+data Specialization = SEq | SSpecialize Const Var
+
+specialize :: RType -> RType -> Maybe Specialization
+specialize (RConst c) (RConst c')
+  | c == c'   = Just SEq
+  | otherwise = Nothing
+specialize (RVar v) (RConst c)   = Just (SSpecialize c v)
+specialize (RConst c) (RVar v)   = Just (SSpecialize c v)
+specialize (RApp f x) (RApp f' x')
+  | f == f'   = specialize x x'
+  | otherwise = Nothing
+specialize _ _ = Nothing
+
 --------------------------------------------------------------------------------
 
 labeltype :: Label -> RType -> Maybe RType
