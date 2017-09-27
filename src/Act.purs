@@ -465,7 +465,7 @@ tweetsR :: Ref'
 tweetsR = mkRef' tweets
 
 listComponentExpr :: Expr
-listComponentExpr = undefined -- ELam "listC" (ELam "tweets" (ELam "tweetC" (EApp (EApp (EVar "listC") (EVar "tweets")) (EVar "tweetC"))))
+listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
 
 listComponent' :: forall eff st. Component eff st
 listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]
