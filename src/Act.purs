@@ -416,18 +416,6 @@ tweet =
 tweets :: Array Tweet
 tweets = A.fromFoldable $ repeat 10 tweet
 
-tweetComponent :: forall eff st. Tweet -> Component eff st
-tweetComponent tweet = div [ class_ "tweet" ]
-  [ div [ class_ "user" ] [ text tweet.user ]
-  , div [ class_ "text" ] [ text tweet.text ]
-  , div [ class_ "icon1" ] [ ]
-  , div [ class_ "icon2" ] [ ]
-  , div [ class_ "icon3" ] [ ]
-  ]
-
-listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
-listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
-
 testUI :: forall eff st. Component eff st
 testUI = div [ class_ "component-split" ]
   [ div [ class_ "component-container" ]
@@ -441,8 +429,8 @@ testUI = div [ class_ "component-split" ]
 type Ref  = Unit × TypeM RType
 type Ref' = Unit
 
-mkRef :: forall a. a -> TypeM RType -> Ref
-mkRef cmp rtype = unsafeCoerce cmp × rtype
+mkRef :: forall a. TypeM RType -> a -> Ref
+mkRef rtype cmp = unsafeCoerce cmp × rtype
 
 mkRef' :: forall a. a -> Ref'
 mkRef' = unsafeCoerce
@@ -455,11 +443,33 @@ componentFromRef e args
   | Just js <- exprToJS e = applyJSFun (jsFunFromString js) args
   | otherwise             = div [] []
 
-listR :: Ref'
-listR = mkRef' listComponent
+listR :: Ref
+listR = mkRef listCT listComponent 
+  where
+    listCT = fun [ pure $ array a, fun [ pure a ] component ] component
 
-tweetR :: Ref'
-tweetR = mkRef' tweetComponent
+    listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
+    listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
+
+tweetCR :: Ref
+tweetCR = mkRef tweetCT tweetComponent
+  where
+    tweetCT = fun [ pure $ array tweetT ] component
+
+    tweetComponent :: forall eff st. Tweet -> Component eff st
+    tweetComponent tweet = div [ class_ "tweet" ]
+      [ div [ class_ "user" ] [ text tweet.user ]
+      , div [ class_ "text" ] [ text tweet.text ]
+      , div [ class_ "icon1" ] [ ]
+      , div [ class_ "icon2" ] [ ]
+      , div [ class_ "icon3" ] [ ]
+      ]
+
+tweetT :: RType
+tweetT = RConst (Const "Tweet")
+
+tweetsT :: RType
+tweetsT = array tweetT
 
 tweetsR :: Ref'
 tweetsR = mkRef' tweets
