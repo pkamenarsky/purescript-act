@@ -185,18 +185,29 @@ substituteC :: RType -> Substitution -> Expr
 substituteC (RFun ((_ × tt@(RFun args _)) L.: Nil) _) subst = substitute tt subst
 substituteC _ _ = EVar "substituteC error: no RFun"
 
-data Specialization = SEq | SSpecialize Const Var
+data Unification = UEq | UUnify Const Var
 
-specialize :: RType -> RType -> Maybe Specialization
-specialize (RConst c) (RConst c')
-  | c == c'   = Just SEq
+unify :: RType -> RType -> Maybe Unification
+unify (RConst c) (RConst c')
+  | c == c'   = Just UEq
   | otherwise = Nothing
-specialize (RVar v) (RConst c)   = Just (SSpecialize c v)
-specialize (RConst c) (RVar v)   = Just (SSpecialize c v)
-specialize (RApp f x) (RApp f' x')
-  | f == f'   = specialize x x'
+unify (RVar v) (RConst c)   = Just (UUnify c v)
+unify (RConst c) (RVar v)   = Just (UUnify c v)
+unify (RApp f x) (RApp f' x')
+  | f == f'   = unify x x'
   | otherwise = Nothing
-specialize _ _ = Nothing
+unify _ _ = Nothing
+
+specialize :: M.Map Var Const -> RType -> RType
+specialize ctx t = foldr (uncurry specialize') t (M.toUnfoldable ctx :: L.List (Var × Const))
+
+specialize' :: Var -> Const -> RType -> RType
+specialize'  _ _ t@(RConst _) = t
+specialize' (Var v) c@(Const _) t@(RVar (Var v'))
+  | v == v'   = RConst c
+  | otherwise = t
+specialize' v c (RApp f x)  = RApp f (specialize' v c x)
+specialize' v c (RFun f xs) = RFun (map (\(l × t) -> l × specialize' v c t) f) (specialize' v c xs)
 
 --------------------------------------------------------------------------------
 
