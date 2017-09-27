@@ -420,7 +420,7 @@ testUI :: forall eff st. Component eff st
 testUI = div [ class_ "component-split" ]
   [ div [ class_ "component-container" ]
     [ -- listComponent tweets tweetComponent
-      listComponent'
+      -- listComponent'
     ]
   ]
 
@@ -438,13 +438,15 @@ mkRef' = unsafeCoerce
 rtypeFromRefs :: Array Ref -> RType
 rtypeFromRefs refs = runType $ fun (map snd refs) component
 
-componentFromRef :: forall eff st. Expr -> Array Ref' -> Component eff st
+componentFromRef :: forall eff st. Expr -> Array Ref -> Component eff st
 componentFromRef e args
-  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) args
+  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map fst args)
   | otherwise             = div [] []
 
-listR :: Ref
-listR = mkRef listCT listComponent 
+--------------------------------------------------------------------------------
+
+listCR :: Ref
+listCR = mkRef listCT listComponent 
   where
     listCT = fun [ pure $ array a, fun [ pure a ] component ] component
 
@@ -468,14 +470,11 @@ tweetCR = mkRef tweetCT tweetComponent
 tweetT :: RType
 tweetT = RConst (Const "Tweet")
 
-tweetsT :: RType
-tweetsT = array tweetT
+tweetsR :: Ref
+tweetsR = mkRef (pure $ array tweetT) tweets
 
-tweetsR :: Ref'
-tweetsR = mkRef' tweets
-
-listComponentExpr :: Expr
-listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
-
-listComponent' :: forall eff st. Component eff st
-listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]
+--listComponentExpr :: Expr
+--listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
+--
+--listComponent' :: forall eff st. Component eff st
+--listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]
