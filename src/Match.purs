@@ -133,18 +133,14 @@ componentType2 = runType $ fun [ pure person, fun [ pure a ] component ] compone
 type Label = String
 
 data Expr = EVar Label
-          -- | EApp Expr Expr
           | EApp Expr (List Expr)
           | ELam (List Label) Expr
-          -- | ELam Label Expr
           | EPlaceholder
 
 instance showExpr :: Show Expr where
   show (EVar v)     = v
   show (EApp f x)   = show f <> " " <> joinWith " " (map show $ A.fromFoldable x)
-  -- show (EApp f x)   = show f <> " " <> show x
   show (ELam a e)   = "(λ" <> joinWith " " (A.fromFoldable a) <> " -> " <> show e <> ")"
-  -- show (ELam a e)   = "(λ" <> show a <> ". " <> show e <> ")"
   show EPlaceholder = "_"
 
 data Substitution = SApp Label (List Substitution)
@@ -306,25 +302,14 @@ extract _ = Nothing
 
 --------------------------------------------------------------------------------
 
--- exprToJS :: forall eff st. Expr -> Maybe String
--- exprToJS (EVar x)   = Just x
--- exprToJS (ELam a e) = do
---   e' <- exprToJS e
---   pure $ "function(" <> joinWith ", " (A.fromFoldable a) <> ") { return (" <> e' <> "); }"
--- exprToJS (EApp f as) = do
---   f'  <- exprToJS f
---   as' <- traverse exprToJS as
---   pure $ "(" <> f' <> ")(" <> joinWith", " (A.fromFoldable as') <> ");"
--- exprToJS EPlaceholder = Nothing
-
 exprToJS :: forall eff st. Expr -> Maybe String
-exprToJS _ = Nothing
--- exprToJS (EVar x)   = Just x
--- exprToJS (ELam a e) = do
---   e' <- exprToJS e
---   pure $ "function(" <> a <> ") { return " <> e' <> "; }"
--- exprToJS (EApp f as) = do
---   f'  <- exprToJS f
---   as' <- exprToJS as
---   pure $ "(" <> f' <> ")(" <> as' <> ")"
--- exprToJS EPlaceholder = Nothing
+exprToJS (EVar x)   = Just x
+exprToJS (ELam (Cons a as) e) = do
+  e' <- exprToJS (ELam as e)
+  pure $ "function(" <> a <> ") { return " <> e' <> "; }"
+exprToJS (ELam Nil e) = exprToJS e
+exprToJS (EApp f as) = do
+  f'  <- exprToJS f
+  as' <- traverse exprToJS as
+  pure $ "(" <> f' <> ")" <> joinWith "" (A.fromFoldable $ map (\a -> "(" <> a <> ")") as')
+exprToJS EPlaceholder = Nothing
