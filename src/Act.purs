@@ -76,7 +76,7 @@ emptyAppState :: AppState
 emptyAppState =
   { debug     : "Debug: "
   , dragState : Nothing
-  , rtype     : type2
+  , rtype     : rtypeFromRefs refArray -- type2
   , substs    : L.Nil
   }
 
@@ -100,7 +100,7 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 1000.0 × 400.0) _substs st.rtype
+     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs st.rtype
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -439,7 +439,7 @@ mkRef' :: forall a. a -> Ref'
 mkRef' = unsafeCoerce
 
 rtypeFromRefs :: Array Ref -> RType
-rtypeFromRefs refs = runType $ fun (map snd refs) component
+rtypeFromRefs refs = runType $ fun [ fun (map snd refs) component] component 
 
 componentFromRef :: forall eff st. Expr -> Array Ref -> Component eff st
 componentFromRef e args
@@ -459,7 +459,7 @@ listCR = mkRef listCT listComponent
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
   where
-    tweetCT = fun [ pure $ array tweetT ] component
+    tweetCT = fun [ pure tweetT ] component
 
     tweetComponent :: forall eff st. Tweet -> Component eff st
     tweetComponent tweet = div [ class_ "tweet" ]
@@ -475,6 +475,9 @@ tweetT = RConst (Const "Tweet")
 
 tweetsR :: Ref
 tweetsR = mkRef (pure $ array tweetT) tweets
+
+refArray :: Array Ref
+refArray = [ listCR, tweetCR, tweetsR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
