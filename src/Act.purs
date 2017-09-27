@@ -438,14 +438,17 @@ testUI = div [ class_ "component-split" ]
 
 --------------------------------------------------------------------------------
 
-type Ref  = Unit × RType
+type Ref  = Unit × TypeM RType
 type Ref' = Unit
 
-mkRef :: forall a. a -> RType -> Ref
+mkRef :: forall a. a -> TypeM RType -> Ref
 mkRef cmp rtype = unsafeCoerce cmp × rtype
 
 mkRef' :: forall a. a -> Ref'
 mkRef' = unsafeCoerce
+
+rtypeFromRefs :: Array Ref -> RType
+rtypeFromRefs refs = runType $ fun (map snd refs) component
 
 componentFromRef :: forall eff st. Expr -> Array Ref' -> Component eff st
 componentFromRef e args
