@@ -97,19 +97,22 @@ mainUI :: forall eff. Component eff AppState
 mainUI = div [] [ {- testUI -} ui ]
 
 ui :: forall eff. Component eff AppState
-ui = state \st -> div
- []
- [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-   $ [ snapValue $ typeComponent st M.empty (200.5 × 100.5 × 1000.0 × 400.0) _substs st.rtype
-     ]
-  <> case st.dragState of
-       Just (DragConn ds) -> [ line ds.start ds.end ]
-       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
-       _ -> []
- , case st.substs of
-     L.Cons s _ -> code [] [ text $ show s <> " # " <> show (substituteC st.rtype s) ]
-     _ -> code [] []
- -- , state \st -> code [] [ text st.debug ]
+ui = state \st -> div []
+ [ div [ class_ "wire-split" ]
+   [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
+     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 1000.0 × 400.0) _substs st.rtype
+       ]
+    <> case st.dragState of
+         Just (DragConn ds) -> [ line ds.start ds.end ]
+         Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+         _ -> []
+   , case st.substs of
+       L.Cons s _ -> code [] [ text $ show s <> " # " <> show (substituteC st.rtype s) ]
+       _ -> code [] []
+   -- , state \st -> code [] [ text st.debug ]
+   ]
+ , div [ class_ "component-split" ]
+   []
  ]
 
 --------------------------------------------------------------------------------

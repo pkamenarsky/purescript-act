@@ -7,6 +7,17 @@
     height: 156px;
 }
 
+.wire-split {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 400px;
+
+    overflow: auto;
+}
+
 .component-split {
     position: absolute;
 
