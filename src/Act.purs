@@ -106,11 +106,11 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+     $ [ snapValue $ typeComponent 0 st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
-         Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+         Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent 1 st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
          _ -> []
    , case st.substs of
        L.Cons s _ -> code [] [ text $ showUnfcs st.unfcs <> " # " <> show s <> " # " <> show (substituteC st.rtype s) ]
@@ -236,6 +236,14 @@ subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \
       cw        = (bw - (gap * (tn count + 1.0))) / tn count
       cy        = by + gap
 
+subdivide'' :: forall eff st a b c m. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m (Component eff st)) -> m (Array (Component eff st))
+subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f ((bx + gap) × (by + bh - tn (i + 1) * (gap + h)) × w × h) i a
+   where
+      count     = A.length as
+
+      w         = 80.0
+      h         = 80.0
+
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
@@ -300,19 +308,21 @@ snappableCircle radius pos b a = flip SnapM a \pos' -> case pos' of
 
 type Context = M.Map Label Vec
 
-typeComponent :: forall eff. AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
-typeComponent st ctx r ss t = typeComponent' t ctx r ss t
+type Level = Int
+
+typeComponent :: forall eff. Level -> AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
+typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
   where
-    typeComponent' :: RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
-    typeComponent' tt ctx bounds@(bx × by × bw × bh) substs rtype
+    typeComponent' :: Level -> RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
+    typeComponent' level tt ctx bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
           children' <- children
           inc'      <- inc (A.fromFoldable incTypes)
 
-          pure $ g []
-            [ uirect bounds
-            , inc'
-            , children'
+          pure $ g [] $ concat
+            [ if level > 0 then [ uirect bounds ] else []
+            , [ inc' ]
+            , [ children' ]
             ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
@@ -379,8 +389,10 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               M.lookup l' ctx
 
         children :: SnapComponent eff
-        children = g [] <$> subdivide' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+        children = g [] <$> sub bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
           where
+            sub = if level == 0 then subdivide' else subdivide''
+
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
               Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
@@ -394,14 +406,14 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
                 childCmp'   <- childCmp ctx'
 
                 snappableRect shrunkBounds insertChild $ g [] $ concat
-                  [ [ uirect bounds ]
+                  [ if level > 0 then [ uirect bounds ] else []
                   , [ childCmp' ]
                   , exts
                   ]
                 where
                   childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
-                      Just t' -> typeComponent' tt (M.union ctx ctx') shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                      Just t' -> typeComponent' (level + 1) tt (M.union ctx ctx') shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
                       Nothing -> pure $ uirectDashed shrunkBounds
                     _ -> pure $ uirectDashed shrunkBounds
 
@@ -418,7 +430,7 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
               | otherwise = pure $ g [] []
             child _ _ _ = pure $ g [] []
       | otherwise = pure $ g [] []
-    typeComponent' _ _ _ _ _ = pure $ g [] []
+    typeComponent' _ _ _ _ _ _ = pure $ g [] []
 
 --------------------------------------------------------------------------------
 
