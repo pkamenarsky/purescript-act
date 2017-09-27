@@ -16,6 +16,7 @@ import Data.Traversable
 import Data.Lens
 import Data.Maybe
 import Data.Lens.Index
+import Data.String as S
 import Data.Tuple
 import Type.Proxy
 import Unsafe.Coerce
@@ -64,7 +65,7 @@ type AppState =
   , dragState :: Maybe DragState
   , rtype     :: RType
   , substs    :: L.List Substitution
-  , specs     :: M.Map Var Const
+  , unfcs     :: M.Map Var Const
   }
 
 _substs :: Lens' AppState (L.List Substitution)
@@ -79,7 +80,7 @@ emptyAppState =
   , dragState : Nothing
   , rtype     : rtypeFromRefs refArray -- type2
   , substs    : L.Nil
-  , specs     : M.empty
+  , unfcs     : M.empty
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -98,18 +99,21 @@ main = void (elm' >>= RD.render ui')
 mainUI :: forall eff. Component eff AppState
 mainUI = div [] [ {- testUI -} ui ]
 
+showUnfcs :: M.Map Var Const -> String
+showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M.toUnfoldable m :: Array (Var × Const))
+
 ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs st.rtype
+     $ [ snapValue $ typeComponent st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
          Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
          _ -> []
    , case st.substs of
-       L.Cons s _ -> code [] [ text $ show s <> " # " <> show (substituteC st.rtype s) ]
+       L.Cons s _ -> code [] [ text $ showUnfcs st.unfcs <> " # " <> show s <> " # " <> show (substituteC st.rtype s) ]
        _ -> code [] []
    -- , state \st -> code [] [ text st.debug ]
    ]
@@ -357,11 +361,16 @@ typeComponent st ctx r ss t = typeComponent' t ctx r ss t
             ]
           where
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
-            insertArg t (RArgIndex ai) l t' st = flip (over substs) st \sss -> if L.length sss == 0
-              then sss
-              else if t == t'
-                then fromMaybe sss (L.updateAt ai (SArg l) sss)
-                else sss
+            insertArg t (RArgIndex ai) l t' st = case unify t t' of
+              UEq -> flip (over substs) st \sss -> if L.length sss == 0
+                then sss
+                else fromMaybe sss (L.updateAt ai (SArg l) sss)
+              UUnify v c -> flip (over substs) (addUnification st v c) \sss -> if L.length sss == 0
+                then sss
+                else fromMaybe sss (L.updateAt ai (SArg l) sss)
+              UNone -> st
+
+            addUnification st v c = st { unfcs = M.insert v c st.unfcs }
 
             connected ctx (RArgIndex ai) = do
               l' <- case (st ^. substs) L.!! ai of

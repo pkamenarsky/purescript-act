@@ -185,18 +185,23 @@ substituteC :: RType -> Substitution -> Expr
 substituteC (RFun ((_ × tt@(RFun args _)) L.: Nil) _) subst = substitute tt subst
 substituteC _ _ = EVar "substituteC error: no RFun"
 
-data Unification = UEq | UUnify Const Var
+data Unification = UEq | UUnify Var Const | UNone
 
-unify :: RType -> RType -> Maybe Unification
+instance showUnification :: Show Unification where
+  show UEq                        = " == "
+  show (UNone)                    = "0"
+  show (UUnify (Var v) (Const c)) = v <> " -> " <> c
+
+unify :: RType -> RType -> Unification
 unify (RConst c) (RConst c')
-  | c == c'   = Just UEq
-  | otherwise = Nothing
-unify (RVar v) (RConst c)   = Just (UUnify c v)
-unify (RConst c) (RVar v)   = Just (UUnify c v)
+  | c == c'   = UEq
+  | otherwise = UNone
+unify (RVar v) (RConst c)   = UUnify v c
+unify (RConst c) (RVar v)   = UUnify v c
 unify (RApp f x) (RApp f' x')
   | f == f'   = unify x x'
-  | otherwise = Nothing
-unify _ _ = Nothing
+  | otherwise = UNone
+unify _ _ = UNone
 
 specialize :: M.Map Var Const -> RType -> RType
 specialize ctx t = foldr (uncurry specialize') t (M.toUnfoldable ctx :: L.List (Var × Const))
