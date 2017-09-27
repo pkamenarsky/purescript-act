@@ -112,8 +112,14 @@ ui = state \st -> div []
    -- , state \st -> code [] [ text st.debug ]
    ]
  , div [ class_ "component-split" ]
-   []
+     [ div [ class_ "component-container" ]
+       [ resultCmp st ]
+     ]
  ]
+ where
+   resultCmp st = case st.substs of
+     L.Cons s _ -> componentFromRefs (substituteC st.rtype s) refArray
+     _          -> div [] []
 
 --------------------------------------------------------------------------------
 
@@ -441,8 +447,8 @@ mkRef' = unsafeCoerce
 rtypeFromRefs :: Array Ref -> RType
 rtypeFromRefs refs = runType $ fun [ fun (map snd refs) component] component 
 
-componentFromRef :: forall eff st. Expr -> Array Ref -> Component eff st
-componentFromRef e args
+componentFromRefs :: forall eff st. Expr -> Array Ref -> Component eff st
+componentFromRefs e args
   | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map fst args)
   | otherwise             = div [] []
 
