@@ -223,7 +223,7 @@ tn = I.toNumber
 gap :: Number
 gap = 30.0
 
-subdivide :: forall eff st a. Rect -> Array a -> (Rect -> a -> Component eff st) -> Component eff st
+subdivide :: forall eff st a r. Rect -> Array a -> (Rect -> a -> Component eff st) -> Component eff st
 subdivide (bx × by × bw × bh) as f = g [] $
   flip map (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) a
   where
@@ -232,7 +232,7 @@ subdivide (bx × by × bw × bh) as f = g [] $
      cw    = (bw - (gap * (tn count + 1.0))) / tn count
      cy    = by + gap
 
-subdivide' :: forall eff st a b c m. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m (Component eff st)) -> m (Array (Component eff st))
+subdivide' :: forall eff st a b c m r. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m r) -> m (Array r)
 subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (cx (tn i) × (by + gap) × cw × (bh - 2.0 * gap)) i a
    where
       count     = A.length as
@@ -240,7 +240,7 @@ subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \
       cw        = (bw - (gap * (tn count + 1.0))) / tn count
       cy        = by + gap
 
-subdivide'' :: forall eff st a b c m. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m (Component eff st)) -> m (Array (Component eff st))
+subdivide'' :: forall eff st a b c m r. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m r) -> m (Array r)
 subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (bx × (by + tn i * ch) × bw × ch) i a
    where
       count  = A.length as
@@ -317,14 +317,14 @@ typeComponent :: forall eff.
               -> Rect
               -> Lens' AppState (L.List Substitution)
               -> RType
-              -> SnapComponent' (Component eff AppState × Array (Array (Component eff AppState)) × Context)
+              -> SnapComponent' (Component eff AppState × Array (Component eff AppState) × Context)
 typeComponent st r ss t = typeComponent' t r ss t
   where
     typeComponent' :: RType
                    -> Rect
                    -> Lens' AppState (L.List Substitution)
                    -> RType
-                   -> SnapComponent' (Component eff AppState × Array (Array (Component eff AppState)) × Context)
+                   -> SnapComponent' (Component eff AppState × Array (Component eff AppState) × Context)
     typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
           children' <- children
@@ -333,10 +333,10 @@ typeComponent st r ss t = typeComponent' t r ss t
           let cmp   = g [] $ concat
                 [ [ uirect bounds ]
                 , [ inc' ]
-                , map fst children'
+                , children'
                 ]
 
-          pure $ cmp × map snd children' × undefined
+          pure $ cmp × undefined × undefined
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
@@ -401,8 +401,8 @@ typeComponent st r ss t = typeComponent' t r ss t
                 _ -> Nothing
               M.lookup l' ctx
 
-        children :: SnapComponent' (Array (Component eff AppState × Array (Component eff AppState)))
-        children = undefined -- subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+        children :: SnapComponent' (Array (Component eff AppState))
+        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
@@ -410,26 +410,25 @@ typeComponent st r ss t = typeComponent' t r ss t
               Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
             zipSubsts ss L.Nil = L.Nil
     
-            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent' (Component eff AppState × Array (Component eff AppState))
+            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
             child bounds@(ix × iy × iw × ih) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
-                exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-                childCmp'   <- childCmp ctx'
-                child       <-  snappableRect dropBounds insertChild $ g [] $ concat
+                exts × ctx'       <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+                childCmp' × exts' <- childCmp ctx'
+
+                snappableRect dropBounds insertChild $ g [] $ concat
                   [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
                   , [ childCmp' ]
-                  , exts
+                  , exts'
                   ]
-
-                pure $ child × exts
                 where
                   childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
                       Just t' -> do
                         tcmp × exts' × _ <- typeComponent' tt dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                        pure tcmp
-                      Nothing -> pure $ uirectDashed dropBounds
-                    _ -> pure $ uirectDashed dropBounds
+                        pure $ tcmp × exts'
+                      Nothing -> pure $ uirectDashed dropBounds × []
+                    _ -> pure $ uirectDashed dropBounds × []
 
                   -- shrunkBounds = shrink childMargin bounds
                   dropSize     = 36.0
@@ -444,9 +443,9 @@ typeComponent st r ss t = typeComponent' t r ss t
                   argCount (RFun args _) = L.length args
                   argCount _ = 0
 
-              | otherwise = pure (g [] [] × [])
-            child _ _ _ = pure (g [] [] × [])
-      | otherwise = pure (g [] [] × [] × M.empty)
+              | otherwise = pure $ g [] []
+            child _ _ _ = pure $ g [] []
+      | otherwise = pure $ g [] [] × [] × M.empty
 
 --------------------------------------------------------------------------------
 
