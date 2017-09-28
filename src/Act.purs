@@ -403,19 +403,22 @@ typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
                 exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
                 childCmp'   <- childCmp ctx'
 
-                snappableRect shrunkBounds insertChild $ g [] $ concat
-                  [ if level > 0 then [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ] else []
+                snappableRect dropBounds insertChild $ g [] $ concat
+                  [ if level > 0 then [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ] else [ uirect bounds ]
                   , [ childCmp' ]
                   , exts
                   ]
                 where
                   childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
-                      Just t' -> typeComponent' (level + 1) tt (M.union ctx ctx') shrunkBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                      Nothing -> pure $ uirectDashed shrunkBounds
-                    _ -> pure $ uirectDashed shrunkBounds
+                      Just t' -> typeComponent' (level + 1) tt (M.union ctx ctx') dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                      Nothing -> pure $ uirectDashed dropBounds
+                    _ -> pure $ uirectDashed dropBounds
 
-                  shrunkBounds = shrink childMargin bounds
+                  -- shrunkBounds = shrink childMargin bounds
+                  dropSize     = 36.0
+                  dropGap      = 24.0
+                  dropBounds   = ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
 
                   insertChild l t st = flip (over substs) st \sss -> if L.length sss == 0
                     then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
