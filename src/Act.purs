@@ -237,12 +237,10 @@ subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \
       cy        = by + gap
 
 subdivide'' :: forall eff st a b c m. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m (Component eff st)) -> m (Array (Component eff st))
-subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f ((bx + gap) × (by + bh - tn (i + 1) * (gap + h)) × w × h) i a
+subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (bx × (by + tn i * ch) × bw × ch) i a
    where
-      count     = A.length as
-
-      w         = 80.0
-      h         = 80.0
+      count  = A.length as
+      ch     = min 200.0 (bh / tn count)
 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
@@ -400,13 +398,13 @@ typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
             zipSubsts ss L.Nil = L.Nil
     
             child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-            child bounds@(ix × iy × _ × _) index (s × RArgIndex ai × l × t@(RFun args _))
+            child bounds@(ix × iy × iw × ih) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
                 exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
                 childCmp'   <- childCmp ctx'
 
                 snappableRect shrunkBounds insertChild $ g [] $ concat
-                  [ if level > 0 then [ uirect bounds ] else []
+                  [ if level > 0 then [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ] else []
                   , [ childCmp' ]
                   , exts
                   ]
