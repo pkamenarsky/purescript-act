@@ -106,11 +106,15 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent 0 st M.empty (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+     $ [ let cmp × chs × _ = snapValue $ typeComponent st (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+           in cmp
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
-         Just (DragHOC { hoc, label, pos: (px × py) }) -> [ snapValue $ typeComponent 1 st M.empty ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc ]
+         Just (DragHOC { hoc, label, pos: (px × py) }) ->
+           [ let cmp × chs × _ = snapValue $ typeComponent st ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
+               in cmp
+           ]
          _ -> []
    , case st.substs of
        L.Cons s _ -> code [] [ text $ showUnfcs st.unfcs <> " # " <> show s <> " # " <> show (substituteC st.rtype s) ]
@@ -308,20 +312,31 @@ type Context = M.Map Label Vec
 
 type Level = Int
 
-typeComponent :: forall eff. Level -> AppState -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
-typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
+typeComponent :: forall eff.
+                 AppState
+              -> Rect
+              -> Lens' AppState (L.List Substitution)
+              -> RType
+              -> SnapComponent' (Component eff AppState × Array (Array (Component eff AppState)) × Context)
+typeComponent st r ss t = typeComponent' t r ss t
   where
-    typeComponent' :: Level -> RType -> Context -> Rect -> Lens' AppState (L.List Substitution) -> RType -> SnapComponent eff
-    typeComponent' level tt ctx bounds@(bx × by × bw × bh) substs rtype
+    typeComponent' :: RType
+                   -> Rect
+                   -> Lens' AppState (L.List Substitution)
+                   -> RType
+                   -> SnapComponent' (Component eff AppState × Array (Array (Component eff AppState)) × Context)
+    typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
           children' <- children
           inc'      <- inc (A.fromFoldable incTypes)
 
-          pure $ g [] $ concat
-            [ if level > 0 then [ uirect bounds ] else []
-            , [ inc' ]
-            , [ children' ]
-            ]
+          let cmp   = g [] $ concat
+                [ [ uirect bounds ]
+                , [ inc' ]
+                , map fst children'
+                ]
+
+          pure $ cmp × map snd children' × undefined
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
@@ -363,9 +378,9 @@ typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
         inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
           snappableCircle 10.0 (pos i) (insertArg t ai) $ g [] $ concat
             [ [ uicircle (pos i) (UILabelRight $ show t) ]
-            , case connected ctx ai of
-                Just pos' -> [ line pos' (pos i) ]
-                Nothing   -> []
+            -- , case connected ctx ai of
+            --     Just pos' -> [ line pos' (pos i) ]
+            --     Nothing   -> []
             ]
           where
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
@@ -386,32 +401,33 @@ typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
                 _ -> Nothing
               M.lookup l' ctx
 
-        children :: SnapComponent eff
-        children = g [] <$> sub bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+        children :: SnapComponent' (Array (Component eff AppState × Array (Component eff AppState)))
+        children = undefined -- subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
           where
-            sub = if level == 0 then subdivide' else subdivide''
-
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
               Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
               Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
             zipSubsts ss L.Nil = L.Nil
     
-            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent' (Component eff AppState × Array (Component eff AppState))
             child bounds@(ix × iy × iw × ih) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
                 exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
                 childCmp'   <- childCmp ctx'
-
-                snappableRect dropBounds insertChild $ g [] $ concat
-                  [ if level > 0 then [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ] else [ uirect bounds ]
+                child       <-  snappableRect dropBounds insertChild $ g [] $ concat
+                  [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
                   , [ childCmp' ]
                   , exts
                   ]
+
+                pure $ child × exts
                 where
                   childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
-                      Just t' -> typeComponent' (level + 1) tt (M.union ctx ctx') dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                      Just t' -> do
+                        tcmp × exts' × _ <- typeComponent' tt dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                        pure tcmp
                       Nothing -> pure $ uirectDashed dropBounds
                     _ -> pure $ uirectDashed dropBounds
 
@@ -428,10 +444,9 @@ typeComponent level st ctx r ss t = typeComponent' level t ctx r ss t
                   argCount (RFun args _) = L.length args
                   argCount _ = 0
 
-              | otherwise = pure $ g [] []
-            child _ _ _ = pure $ g [] []
-      | otherwise = pure $ g [] []
-    typeComponent' _ _ _ _ _ _ = pure $ g [] []
+              | otherwise = pure (g [] [] × [])
+            child _ _ _ = pure (g [] [] × [])
+      | otherwise = pure (g [] [] × [] × M.empty)
 
 --------------------------------------------------------------------------------
 

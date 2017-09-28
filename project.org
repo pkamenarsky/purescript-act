@@ -1,5 +1,6 @@
 * TODO
 ** ExternalComponent?
+** draw argument connections externally?
 ** DONE disallow incompatible type connections
 ** DONE type inference
 * type-directed search
