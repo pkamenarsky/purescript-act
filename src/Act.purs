@@ -132,7 +132,7 @@ ui = state \st -> div []
          ]
          where
            exts = traverse (ext (snap cmp) (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
-           cmp  = child st Full M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
+           cmp  = child st Full M.empty st.rtype (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -391,12 +391,13 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
       ]
     where
       -- shrunkBounds = shrink childMargin bounds
+      -- childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
+
       dropSize     = 36.0
       dropGap      = 24.0
       dropBounds   = case style of
-        Full    -> shrink childMargin bounds
+        Full    -> bounds
         Compact -> ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
-      childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
       insertChild l t st = flip (set $ cloneLens substlens) st (SApp l (repeat (argCount t) Placeholder))
 
