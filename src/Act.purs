@@ -107,12 +107,12 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent st (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+     $ [ snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
          Just (DragHOC { hoc, label, pos: (px × py) }) ->
-           [ snapValue $ typeComponent st (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
+           [ snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
            ]
          _ -> []
    , case st.substs of
@@ -347,25 +347,25 @@ ext snap (ox × oy) (i × l × t) = do
   where
     pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
-child :: forall eff. AppState -> RType -> Rect -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-child st tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t@(RFun args _))
+child :: forall eff. AppState -> Context -> RType -> Rect -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+child st ctx tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
-    let v   = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-        cmp = defer $ \_ -> typeComponent st tt dropBounds (substlens <<< _SApp' <<< _2) (unsafeCoerce (force v))
-    childCmp'   <- childCmp (snd $ force v)
+
+    let extsctx = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+        cmp     = defer $ \_ -> case s of
+          Just (SApp fs ss) -> case labeltype fs tt of
+            Just t' -> typeComponent st (M.union ctx (snd $ force extsctx)) tt dropBounds (substlens <<< _SApp' <<< _2) t'
+            Nothing -> pure $ uirectDashed dropBounds
+          _ -> pure $ uirectDashed dropBounds
+
+    childCmp' <- force cmp
 
     snappableRect dropBounds insertChild $ g [] $ concat
       [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
       , [ childCmp' ]
-      , fst (force v)
+      , fst (force extsctx)
       ]
     where
-      childCmp ctx' = case s of
-        Just (SApp fs ss) -> case labeltype fs tt of
-          Just t' -> typeComponent st tt dropBounds (substlens <<< _SApp' <<< _2) t'
-          Nothing -> pure $ uirectDashed dropBounds
-        _ -> pure $ uirectDashed dropBounds
-
       -- shrunkBounds = shrink childMargin bounds
       dropSize     = 36.0
       dropGap      = 24.0
@@ -378,16 +378,17 @@ child st tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t
       argCount _ = 0
 
   | otherwise = pure $ g [] []
-child _ _ _ _ _ = pure $ g [] []
+child _ _ _ _ _ _ = pure $ g [] []
 
 typeComponent :: forall eff.
                  AppState
+              -> Context
               -> RType
               -> Rect
               -> Lens' AppState (L.List Substitution)
               -> RType
               -> SnapComponent eff
-typeComponent st tt r ss t = typeComponent' tt r ss t
+typeComponent st ctx tt r ss t = typeComponent' tt r ss t
   where
     typeComponent' :: RType
                    -> Rect
