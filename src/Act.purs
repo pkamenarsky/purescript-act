@@ -44,6 +44,7 @@ import DOM.Node.NonElementParentNode (getElementById)
 import DOM.Node.Types (ElementId(..), documentToNonElementParentNode)
 import Data.Maybe (fromJust)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
+import Path
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import React (transformState)
 import Prelude hiding (div)
@@ -158,6 +159,9 @@ px x = show x <> "px"
 
 line :: forall eff st. Vec -> Vec -> Component eff st
 line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("M" <> show sx <> " " <> show sy <> " L" <> show ex <> " " <> show ey)] []
+
+bezier :: forall eff st. Vec -> Path -> Component eff st
+bezier start es = path [ strokeWidth (px 3.0), fill "transparent", stroke "#d90e59", d (pathToString start es)] []
 
 label :: forall eff st. Vec -> String -> String -> Component eff st
 label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "700", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
@@ -450,8 +454,12 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
             , case connected ctx ai of
                 Just pos' -> [ line pos' (pos i) ]
                 Nothing   -> []
+            , [ incpath (pos i) ]
             ]
           where
+            midy = by + bh / 2.0
+            r    = 15.0
+            incpath start@(sx × sy) = bezier (sx + 5.0 × sy) [H 20.0, TR, V (midy - sy - r * 2.0), BL, H (bx - sx - r * 2.0 - 20.0 - 5.0)]
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
             insertArg t (RArgIndex ai) l t' st = case unify t t' of
               UEq -> flip (over substs) st \sss -> if L.length sss == 0

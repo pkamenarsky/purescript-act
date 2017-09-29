@@ -1,4 +1,4 @@
-module Path where
+module Path (Path, PathElement(..), pathToString) where
 
 import Data.Foldable
 import Data.List
