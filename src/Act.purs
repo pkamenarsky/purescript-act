@@ -108,6 +108,7 @@ ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+         cmp st
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
@@ -127,7 +128,7 @@ ui = state \st -> div []
    cmp st
      | Just (incTypes × L.Cons chType L.Nil) <- extract st.rtype =
          snapValue $ child st M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) _subst (Nothing × chType)
-     | otherwise = div [] []
+     | otherwise = g [] []
 
 --------------------------------------------------------------------------------
 
