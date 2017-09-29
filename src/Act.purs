@@ -116,7 +116,7 @@ ui = state \st -> div []
            [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
            ]
          _ -> []
-   , code [] [ text $ showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
+   , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
    ]
  , div [ class_ "component-split" ]
@@ -127,7 +127,7 @@ ui = state \st -> div []
  where
    cmp st
      | Just (incTypes × L.Cons chType L.Nil) <- extract st.rtype =
-         snapValue $ child st M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) _subst (Nothing × chType)
+         snapValue $ child st M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -200,6 +200,11 @@ uirect (bx × by × bw × bh)
   | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
   | otherwise            = g [] []
 
+uirectDashed' :: forall eff st. Rect -> String -> Component eff st
+uirectDashed' (bx × by × bw × bh) color
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke color, strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+  | otherwise            = g [] []
+
 uirectDashed :: forall eff st. Rect -> Component eff st
 uirectDashed (bx × by × bw × bh)
   | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
@@ -239,8 +244,8 @@ subdivide' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \
       cw        = (bw - (gap * (tn count + 1.0))) / tn count
       cy        = by + gap
 
-subdivide'' :: forall eff st a b c m r. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> Int -> a -> m r) -> m (Array r)
-subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (bx × (by + tn i * ch) × bw × ch) i a
+subdivide'' :: forall eff st a b c m r. Monad m => Rect -> (Rect -> Rect) -> Array a -> (Rect -> a -> m r) -> m (Array r)
+subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (bx × (by + tn i * ch) × bw × ch) a
    where
       count  = A.length as
       ch     = min 200.0 (bh / tn count)
@@ -316,21 +321,21 @@ type Level = Int
 ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.State Context (Component eff AppState)
 ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
   [ onMouseDrag \e -> case e of
-      DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+      DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
       DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
         case snap (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
           Just (Left f) -> modify (f l t)
-          _             -> pure unit
+          _             -> modify \st -> st { debug = "no drop target" }
   ]
   [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
 ext snap (ox × oy) (i × l × t) = do
   ST.modify $ M.insert l (pos i)
   pure $ g
     [ onMouseDrag \e -> case e of
-        DragStart e -> modify \st -> st { dragState = Just $ DragConn { start: meToV e, end: meToV e } }
+        DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV e, end: meToV e } }
         DragMove  e -> modify \st -> st
           { dragState = flip map st.dragState \ds -> case ds of
               DragConn dc -> DragConn $ dc { end = meToV e }
@@ -347,16 +352,16 @@ ext snap (ox × oy) (i × l × t) = do
   where
     pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
-child :: forall eff. AppState -> Context -> RType -> Rect -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-child st ctx tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t@(RFun args _))
+child :: forall eff. AppState -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+child st ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
 
-    let extsctx = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+    let extsctx = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp >>= snappableRect dropBounds insertChild)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
         cmp     = defer $ \_ -> case s of
           Just (SApp fs ss) -> case labeltype fs tt of
-            Just t' -> typeComponent st (M.union ctx (snd $ force extsctx)) tt dropBounds (substlens <<< _SApp' <<< _2) t'
-            Nothing -> pure $ uirectDashed dropBounds
-          _ -> pure $ uirectDashed dropBounds
+            Just t' -> typeComponent st ctx {- (M.union ctx (snd $ force extsctx)) -} tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
+            Nothing -> pure $ uirectDashed' dropBounds "#f00"
+          _ -> pure $ uirectDashed' dropBounds "#0f0"
 
     childCmp' <- force cmp
 
@@ -369,16 +374,17 @@ child st ctx tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l 
       -- shrunkBounds = shrink childMargin bounds
       dropSize     = 36.0
       dropGap      = 24.0
-      dropBounds   = ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
+      dropBounds   = shrink childMargin bounds  -- ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
+      childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
-      insertChild l t st = flip (set substlens) st (SApp l (repeat (argCount t) Placeholder))
+      insertChild l t st = flip (set $ cloneLens substlens) st (SApp l (repeat (argCount t) Placeholder))
 
       argCount :: RType -> Int
       argCount (RFun args _) = L.length args
       argCount _ = 0
 
   | otherwise = pure $ g [] []
-child _ _ _ _ _ _ = pure $ g [] []
+child _ _ _ _ _ = pure $ g [] []
 
 typeComponent :: forall eff.
                  AppState
@@ -400,15 +406,11 @@ typeComponent st ctx tt r ss t = typeComponent' tt r ss t
           children' <- children
           inc'      <- inc (A.fromFoldable incTypes)
 
-          -- exts × ctx' <- ST.runStateT (traverse (ext (0.0 × 0.0)) (indexedRange $ A.fromFoldable args)) M.empty
-
-          let cmp   = g [] $ concat
-                [ [ uirect bounds ]
-                , [ inc' ]
-                , children'
-                ]
-
-          pure cmp
+          pure $ g [] $ concat
+            [ [ uirect bounds ]
+            , [ inc' ]
+            , children'
+            ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
@@ -474,49 +476,13 @@ typeComponent st ctx tt r ss t = typeComponent' tt r ss t
               M.lookup l' ctx
 
         children :: SnapComponent' (Array (Component eff AppState))
-        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) child
+        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) (child st ctx tt)
           where
-            zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (Maybe Substitution × RArgIndex × Label × RType)
-            zipSubsts ss (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss ai of
-              Just s  -> L.Cons (Just s × ch) (zipSubsts ss chs)
-              Nothing -> L.Cons (Nothing × ch) (zipSubsts ss chs)
-            zipSubsts ss L.Nil = L.Nil
-    
-            child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-            child bounds@(ix × iy × iw × ih) index (s × RArgIndex ai × l × t@(RFun args _))
-              | isHOC t = do
-                exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-                childCmp'   <- childCmp ctx'
-
-                snappableRect dropBounds insertChild $ g [] $ concat
-                  [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
-                  , [ childCmp' ]
-                  , exts
-                  ]
-                where
-                  childCmp ctx' = case s of
-                    Just (SApp fs ss) -> case labeltype fs tt of
-                      Just t' -> do
-                        tcmp <- typeComponent' tt dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                        pure tcmp
-                      Nothing -> pure $ uirectDashed dropBounds
-                    _ -> pure $ uirectDashed dropBounds
-
-                  -- shrunkBounds = shrink childMargin bounds
-                  dropSize     = 36.0
-                  dropGap      = 24.0
-                  dropBounds   = ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
-
-                  insertChild l t st = flip (over substs) st \sss -> if L.length sss == 0
-                    then (L.Cons (SApp l (repeat (argCount t) Placeholder)) L.Nil)
-                    else fromMaybe sss (L.updateAt ai (SApp l (repeat (argCount t) Placeholder)) sss)
-
-                  argCount :: RType -> Int
-                  argCount (RFun args _) = L.length args
-                  argCount _ = 0
-
-              | otherwise = pure $ g [] []
-            child _ _ _ = pure $ g [] []
+            zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType)
+            zipSubsts ss' (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss' ai of
+              Just s  -> L.Cons (ss <<< lensAtL ai × Just s × ch) (zipSubsts ss' chs)
+              Nothing -> L.Cons (ss <<< lensAtL ai × Nothing × ch) (zipSubsts ss' chs)
+            zipSubsts _ L.Nil = L.Nil
       | otherwise = pure $ g [] []
 
 --------------------------------------------------------------------------------
