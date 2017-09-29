@@ -24,6 +24,7 @@ import Match
 import Undefined
 import Component
 import Trace
+import Path
 import Control.Monad.State as ST
 import DOM as D
 import DOM.Node.Types as D
@@ -44,7 +45,6 @@ import DOM.Node.NonElementParentNode (getElementById)
 import DOM.Node.Types (ElementId(..), documentToNonElementParentNode)
 import Data.Maybe (fromJust)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
-import Path
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import React (transformState)
 import Prelude hiding (div)
@@ -106,7 +106,10 @@ showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M
 
 ui :: forall eff. Component eff AppState
 ui = state \st -> div []
- [ div [ class_ "wire-split" ]
+ [ div [ class_ "search-split" ]
+   [ searchComponent st
+   ]
+ , div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp st
@@ -135,7 +138,7 @@ ui = state \st -> div []
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
            exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
-           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -579,3 +582,22 @@ refArray = [ listCR, tweetCR, tweetsR ]
 --
 --listComponent' :: forall eff st. Component eff st
 --listComponent' = componentFromRef listComponentExpr [ listR, tweetsR, tweetR ]
+
+--------------------------------------------------------------------------------
+
+searchComponent :: forall eff. AppState -> Component eff AppState
+searchComponent st
+  | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg _) _) L.Nil) <- extract st.rtype = div [] $ concat
+    [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
+    , [ div [ class_ "container" ] 
+        [ svg [ class_ "cell-svg", shapeRendering "geometricPrecision", width "300px", height "100px" ]
+          [ snapValue $ ext undefined UILabelTopLeft (20.0 × 30.0) (0 × arg) ]
+        ]
+      ]
+    ]
+    where
+      pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
+      exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+      ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+      cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+  | otherwise = div [] []

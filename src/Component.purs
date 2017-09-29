@@ -208,6 +208,11 @@ foreach_ lns f = { render }
 
 -- TODO: persist event
 
+onChange :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
+onChange f effect = P.onChange \e -> do
+  persistEvent $ unsafeCoerce e
+  effect (f e)
+
 onClick :: forall eff st. (R.Event -> Effect eff st Unit) -> Props eff st
 onClick f effect = P.onClick \e -> do
   persistEvent $ unsafeCoerce e
@@ -301,6 +306,9 @@ fontWeight v _ = P.unsafeMkProps "fontWeight" v
 
 color :: forall eff st. String -> Props eff st
 color v _ = P.unsafeMkProps "color" v
+
+input :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+input props children = { render: \effect st -> [ R.input (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
