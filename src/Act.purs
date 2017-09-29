@@ -291,10 +291,12 @@ snapValue (SnapM _ a) = a
 
 --------------------------------------------------------------------------------
 
-type SnapF = Label -> RType -> AppState -> AppState
+type AppF = Label -> RType -> AppState -> AppState
 
-type SnapComponent'    = SnapM (Either Rect Vec) (Either SnapF SnapF)
+type SnapComponent'    = SnapM (Either Rect Vec) (Either AppF AppF)
 type SnapComponent eff = SnapComponent' (Component eff AppState)
+
+type SnapF = Either Rect Vec -> Maybe (Either AppF AppF)
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
 snappableRect bounds b a = flip SnapM a \bounds' -> case bounds' of
@@ -318,9 +320,9 @@ ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        -- case snap children (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
-        --   Just (Left f) -> modify (f l t)
-        --   _             -> pure unit
+        case snap (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+          Just (Left f) -> modify (f l t)
+          _             -> pure unit
   ]
   [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
 ext snap (ox × oy) (i × l × t) = do
@@ -336,16 +338,16 @@ ext snap (ox × oy) (i × l × t) = do
         DragEnd   e -> do
           modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        --   case snap children (Right (e.pageX × e.pageY)) of
-        --     Just (Right f) -> modify (f l t)
-        --     _              -> pure unit
+          case snap (Right (e.pageX × e.pageY)) of
+            Just (Right f) -> modify (f l t)
+            _              -> pure unit
     ]
     [ uicircle (pos i) (UILabelLeft $ show t) ]
   where
     pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
-child :: forall eff. AppState -> RType -> Rect -> Int -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-child st tt bounds@(ix × iy × iw × ih) index substlens (s × RArgIndex ai × l × t@(RFun args _))
+child :: forall eff. AppState -> RType -> Rect -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+child st tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
     exts × ctx' <- ST.runStateT (traverse (ext undefined (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
     childCmp'   <- childCmp ctx'
@@ -374,7 +376,7 @@ child st tt bounds@(ix × iy × iw × ih) index substlens (s × RArgIndex ai × 
       argCount _ = 0
 
   | otherwise = pure $ g [] []
-child _ _ _ _ _ _ = pure $ g [] []
+child _ _ _ _ _ = pure $ g [] []
 
 typeComponent :: forall eff.
                  AppState
