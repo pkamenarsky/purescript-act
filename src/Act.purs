@@ -127,7 +127,7 @@ ui = state \st -> div []
  where
    cmp st
      | Just (incTypes × L.Cons chType L.Nil) <- extract st.rtype =
-         snapValue $ child st M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
+         snapValue $ child st Full M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -356,15 +356,17 @@ ext snap (ox × oy) (i × l × t) = pure $ g
   where
     pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
-child :: forall eff. AppState -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-child st ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
+data ChildStyle = Full | Compact
+
+child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
      
     let pos i = (ix + (3.0 * gap) × (iy + gap) + (tn i * gap))
     let ctx' = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
     let cmp = snappableRect dropBounds insertChild =<< case s of
           Just (SApp fs ss) -> case labeltype fs tt of
-            Just t' -> typeComponent st (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
+            Just t' -> typeComponent st style (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
             Nothing -> pure $ uirectDashed' dropBounds "#f00"
           _ -> pure $ uirectDashed' dropBounds "#0f0"
 
@@ -372,15 +374,21 @@ child st ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai ×
     cmp' <- cmp
 
     pure $ g [] $ concat
-      [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
+      [ case style of
+          Compact -> [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
+          _       -> [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
       , [ cmp' ]
-      , exts
+      , case style of
+          Compact -> exts
+          _       -> exts
       ]
     where
       -- shrunkBounds = shrink childMargin bounds
       dropSize     = 36.0
       dropGap      = 24.0
-      dropBounds   = shrink childMargin bounds  -- ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
+      dropBounds   = case style of
+        Full    -> shrink childMargin bounds
+        Compact -> ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
       childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
       insertChild l t st = flip (set $ cloneLens substlens) st (SApp l (repeat (argCount t) Placeholder))
@@ -390,17 +398,18 @@ child st ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai ×
       argCount _ = 0
 
   | otherwise = pure $ g [] []
-child _ _ _ _ _ = pure $ g [] []
+child _ _ _ _ _ _ = pure $ g [] []
 
 typeComponent :: forall eff.
                  AppState
+              -> ChildStyle
               -> Context
               -> RType
               -> Rect
               -> Lens' AppState (L.List Substitution)
               -> RType
               -> SnapComponent eff
-typeComponent st ctx tt r ss t = typeComponent' tt r ss t
+typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
   where
     typeComponent' :: RType
                    -> Rect
@@ -415,7 +424,9 @@ typeComponent st ctx tt r ss t = typeComponent' tt r ss t
           pure $ g [] $ concat
             [ [ uirect bounds ]
             , [ inc' ]
-            , children'
+            , case style of
+                Full    -> children'
+                Compact -> []
             ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
@@ -448,7 +459,7 @@ typeComponent st ctx tt r ss t = typeComponent' tt r ss t
               M.lookup l' ctx
 
         children :: SnapComponent' (Array (Component eff AppState))
-        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) (child st ctx tt)
+        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) (child st Compact ctx tt)
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss' (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss' ai of
