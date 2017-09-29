@@ -260,7 +260,7 @@ subdivide'' :: forall eff st a b c m r. Monad m => Rect -> (Rect -> Rect) -> Arr
 subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) \(i × a) -> f (bx × (by + tn i * ch) × bw × ch) a
    where
       count  = A.length as
-      ch     = min 200.0 (bh / tn count)
+      ch     = bh / tn count
 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
@@ -480,7 +480,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
               M.lookup l' ctx
 
         children :: SnapComponent' (Array (Component eff AppState))
-        children = subdivide'' bounds (shrink childMargin) (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) (child st Compact ctx tt)
+        children = subdivide'' bounds id (A.fromFoldable $ zipSubsts (st ^. substs) chTypes) (child st Compact ctx tt)
           where
             zipSubsts :: L.List Substitution -> L.List (RArgIndex × Label × RType) -> L.List (ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType)
             zipSubsts ss' (L.Cons ch@(RArgIndex ai × _ × _) chs) = case L.index ss' ai of
