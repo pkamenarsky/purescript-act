@@ -341,7 +341,7 @@ type Context = M.Map Label Vec
 type Level = Int
 
 ext :: forall eff. SnapF -> (String -> UILabel) -> Vec -> (Int × Label × RType) -> SnapComponent eff
-ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
+ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ state \st -> g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
       DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -352,7 +352,8 @@ ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) =
           Just (Left f) -> modify (f l t)
           _             -> modify \st -> st { debug = "no drop target" }
   ]
-  [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (labelf "HOC") ]
+  -- [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (labelf "HOC") ]
+  [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((ox + 50.5) × (oy + 50.5) × dropSize × dropSize) (_const L.Nil) t ]
 ext snap labelf (ox × oy) (i × l × t) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV e, end: meToV e } }
@@ -597,7 +598,7 @@ searchComponent st
     ]
     where
       pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
-      exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+      exts  = traverse (ext (snap cmp) UILabelLeft (50.0 × (80.0 + gap))) (indexedRange $ A.fromFoldable args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
       cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
   | otherwise = div [] []
