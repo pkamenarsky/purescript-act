@@ -140,7 +140,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
          ])
          where
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
-           exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+           exts  = traverse (ext (snap cmp) UILabelLeft (300.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
            cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (500.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = const Nothing × g [] []
@@ -596,7 +596,7 @@ searchComponent st snap
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] 
         [ div [ class_ "cell" ]
-          [ div [ class_ "title" ] [ text "TweetComponent" ]
+          [ div [ class_ "title" ] [ text "ListComponent" ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
               [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (0 × arg)
               ]
