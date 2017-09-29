@@ -221,7 +221,7 @@ uirectDashed (bx × by × bw × bh)
   | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
   | otherwise            = g [] []
 
-data UILabel = UILabelLeft String | UILabelRight String | UILabelTop String
+data UILabel = UILabelLeft String | UILabelRight String | UILabelTopLeft String | UILabelTopRight String
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
 uicircle (x' × y') label' = g [] $
@@ -229,9 +229,10 @@ uicircle (x' × y') label' = g [] $
   , uilabel label'
   ]
   where
-    uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
-    uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
-    uilabel (UILabelTop str)   = label (x' - 7.0 × y' - 20.0) "start" str
+    uilabel (UILabelLeft str)     = label (x' - 20.0 × y' + 4.0) "end" str
+    uilabel (UILabelRight str)    = label (x' + 20.0 × y' + 4.0) "start" str
+    uilabel (UILabelTopLeft str)  = label (x' - 5.0 × y' - 15.0) "start" str
+    uilabel (UILabelTopRight str) = label (x' + 5.0 × y' - 15.0) "end" str
 
 tn :: Int -> Number
 tn = I.toNumber
@@ -366,7 +367,7 @@ ext snap labelf (ox × oy) (i × l × t) = pure $ g
   ]
   [ uicircle (pos i) (labelf $ show t) ]
   where
-    pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
+    pos i = (ox + (2.0 * gap) × (oy + gap * 2.0) + (tn i * gap))
 
 data ChildStyle = Full | Compact
 
@@ -377,7 +378,7 @@ child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens
 child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
      
-    let pos i = (bx + (3.0 * gap) × (by + gap) + (tn i * gap))
+    let pos i = (bx + (2.0 * gap) × (by + gap * 2.0) + (tn i * gap))
         midy  = by + bh / 2.0
         r     = 15.0
         incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL, V (midy - sy - r * 2.0), BR, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
@@ -390,7 +391,7 @@ child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex
             Nothing -> pure $ uirectDashed' dropBounds "#ccc"
           _ -> pure $ uirectDashed' dropBounds "#ccc"
 
-    exts <- traverse (ext (snap cmp) UILabelTop (bx × (by + gap))) (indexedRange $ A.fromFoldable args)
+    exts <- traverse (ext (snap cmp) UILabelTopRight (bx × by)) (indexedRange $ A.fromFoldable args)
     cmp' <- cmp
 
     pure $ g [] $ concat
@@ -457,7 +458,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
         inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
           snappableCircle 10.0 (pos i) (insertArg t ai) $ g [] $ concat
-            [ [ uicircle (pos i) (UILabelTop $ show t) ]
+            [ [ uicircle (pos i) (UILabelTopLeft $ show t) ]
             , case connected ctx ai of
                 Just pos' -> [ line pos' (pos i) ]
                 Nothing   -> []
