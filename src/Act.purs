@@ -13,6 +13,7 @@ import Data.Functor
 import Data.Exists
 import Data.Generic
 import Data.Traversable
+import Data.Lazy
 import Data.Lens
 import Data.Maybe
 import Data.Lens.Index
@@ -312,7 +313,7 @@ type Context = M.Map Label Vec
 
 type Level = Int
 
-ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.StateT Context SnapComponent' (Component eff AppState)
+ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.State Context (Component eff AppState)
 ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -349,13 +350,14 @@ ext snap (ox × oy) (i × l × t) = do
 child :: forall eff. AppState -> RType -> Rect -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
 child st tt bounds@(ix × iy × iw × ih) substlens (s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
-    exts × ctx' <- ST.runStateT (traverse (ext undefined (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-    childCmp'   <- childCmp ctx'
+    let v   = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+        cmp = defer $ \_ -> typeComponent st tt dropBounds (substlens <<< _SApp' <<< _2) (unsafeCoerce (force v))
+    childCmp'   <- childCmp (snd $ force v)
 
     snappableRect dropBounds insertChild $ g [] $ concat
       [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
       , [ childCmp' ]
-      , exts
+      , fst (force v)
       ]
     where
       childCmp ctx' = case s of
