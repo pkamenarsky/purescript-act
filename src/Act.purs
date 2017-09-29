@@ -133,7 +133,7 @@ ui = state \st -> div []
          ]
          where
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
-           exts  = traverse (ext (snap cmp) (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+           exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
            cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
@@ -336,8 +336,8 @@ type Context = M.Map Label Vec
 
 type Level = Int
 
-ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> SnapComponent eff
-ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
+ext :: forall eff. SnapF -> (String -> UILabel) -> Vec -> (Int × Label × RType) -> SnapComponent eff
+ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
       DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -348,8 +348,8 @@ ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $
           Just (Left f) -> modify (f l t)
           _             -> modify \st -> st { debug = "no drop target" }
   ]
-  [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
-ext snap (ox × oy) (i × l × t) = pure $ g
+  [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (labelf "HOC") ]
+ext snap labelf (ox × oy) (i × l × t) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV e, end: meToV e } }
       DragMove  e -> modify \st -> st
@@ -364,7 +364,7 @@ ext snap (ox × oy) (i × l × t) = pure $ g
           Just (Right f) -> modify (f l t)
           _              -> pure unit
   ]
-  [ uicircle (pos i) (UILabelLeft $ show t) ]
+  [ uicircle (pos i) (labelf $ show t) ]
   where
     pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
 
@@ -374,10 +374,13 @@ dropSize :: Number
 dropSize = 36.0
 
 child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
-child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
+child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
      
-    let pos i = (ix + (3.0 * gap) × (iy + gap) + (tn i * gap))
+    let pos i = (bx + (3.0 * gap) × (by + gap) + (tn i * gap))
+        midy  = by + bh / 2.0
+        r     = 15.0
+        incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL, V (midy - sy - r * 2.0), BR, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
         ctx'  = case style of
           Full    -> M.empty
           Compact -> M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
@@ -387,16 +390,19 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
             Nothing -> pure $ uirectDashed' dropBounds "#ccc"
           _ -> pure $ uirectDashed' dropBounds "#ccc"
 
-    exts <- traverse (ext (snap cmp) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)
+    exts <- traverse (ext (snap cmp) UILabelTop (bx × (by + gap))) (indexedRange $ A.fromFoldable args)
     cmp' <- cmp
 
     pure $ g [] $ concat
       [ case style of
-          Compact -> [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
+          Compact -> [] -- [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
           _       -> []
       , [ cmp' ]
       , case style of
           Compact -> exts
+          _       -> []
+      , case style of
+          Compact -> flip map (0 .. (L.length args - 1)) \i -> incpath (pos i)
           _       -> []
       ]
     where
@@ -406,7 +412,7 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
       dropGap      = 24.0
       dropBounds   = case style of
         Full    -> bounds
-        Compact -> ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
+        Compact -> ((bx + bw - dropGap - dropSize) × (by + bh / 2.0 - dropSize / 2.0) × dropSize × dropSize)
 
       insertChild l t st = flip (set $ cloneLens substlens) st (SApp l (repeat (argCount t) Placeholder))
 
