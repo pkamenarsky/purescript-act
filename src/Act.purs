@@ -450,15 +450,15 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
                    -> SnapComponent eff
     typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
-          children' <- children
+          children' <- case style of
+            Full    -> Just <$> children
+            Compact -> pure Nothing
           inc'      <- inc (A.fromFoldable incTypes)
 
           pure $ g [] $ concat
             [ [ uirect bounds ]
             , [ inc' ]
-            , case style of
-                Full    -> children'
-                Compact -> []
+            , fromMaybe [] children'
             ]
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
