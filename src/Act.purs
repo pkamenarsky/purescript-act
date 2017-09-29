@@ -16,7 +16,6 @@ import Data.Traversable
 import Data.Lens
 import Data.Maybe
 import Data.Lens.Index
-import Data.String as S
 import Data.Tuple
 import Type.Proxy
 import Unsafe.Coerce
@@ -31,6 +30,7 @@ import Data.Array as A
 import Data.Int as I
 import Data.List as L
 import Data.Map as M
+import Data.String as S
 import React as R
 import React.DOM as R
 import React.DOM.Props as P
@@ -106,14 +106,12 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ let cmp × chs × _ = snapValue $ typeComponent st (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
-           in cmp
+     $ [ snapValue $ typeComponent st (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
          Just (DragHOC { hoc, label, pos: (px × py) }) ->
-           [ let cmp × chs × _ = snapValue $ typeComponent st ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
-               in cmp
+           [ snapValue $ typeComponent st (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
            ]
          _ -> []
    , case st.substs of
@@ -293,9 +291,9 @@ snapValue (SnapM _ a) = a
 
 --------------------------------------------------------------------------------
 
-type AppF = Label -> RType -> AppState -> AppState
+type SnapF = Label -> RType -> AppState -> AppState
 
-type SnapComponent'    = SnapM (Either Rect Vec) (Either AppF AppF)
+type SnapComponent'    = SnapM (Either Rect Vec) (Either SnapF SnapF)
 type SnapComponent eff = SnapComponent' (Component eff AppState)
 
 snappableRect :: forall a b c d. Rect -> b -> a -> SnapM (Either Rect c) (Either b d) a
@@ -312,23 +310,92 @@ type Context = M.Map Label Vec
 
 type Level = Int
 
+ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.StateT Context SnapComponent' (Component eff AppState)
+ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
+  [ onMouseDrag \e -> case e of
+      DragStart e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+      DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+      DragEnd   e -> do
+        modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
+
+        -- case snap children (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+        --   Just (Left f) -> modify (f l t)
+        --   _             -> pure unit
+  ]
+  [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (UILabelLeft "HOC") ]
+ext snap (ox × oy) (i × l × t) = do
+  ST.modify $ M.insert l (pos i)
+  pure $ g
+    [ onMouseDrag \e -> case e of
+        DragStart e -> modify \st -> st { dragState = Just $ DragConn { start: meToV e, end: meToV e } }
+        DragMove  e -> modify \st -> st
+          { dragState = flip map st.dragState \ds -> case ds of
+              DragConn dc -> DragConn $ dc { end = meToV e }
+              _ -> ds
+          }
+        DragEnd   e -> do
+          modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
+
+        --   case snap children (Right (e.pageX × e.pageY)) of
+        --     Just (Right f) -> modify (f l t)
+        --     _              -> pure unit
+    ]
+    [ uicircle (pos i) (UILabelLeft $ show t) ]
+  where
+    pos i = (ox + (3.0 * gap) × oy + (tn i * gap))
+
+child :: forall eff. AppState -> RType -> Rect -> Int -> Lens' AppState Substitution -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
+child st tt bounds@(ix × iy × iw × ih) index substlens (s × RArgIndex ai × l × t@(RFun args _))
+  | isHOC t = do
+    exts × ctx' <- ST.runStateT (traverse (ext undefined (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+    childCmp'   <- childCmp ctx'
+
+    snappableRect dropBounds insertChild $ g [] $ concat
+      [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
+      , [ childCmp' ]
+      , exts
+      ]
+    where
+      childCmp ctx' = case s of
+        Just (SApp fs ss) -> case labeltype fs tt of
+          Just t' -> typeComponent st tt dropBounds (substlens <<< _SApp' <<< _2) t'
+          Nothing -> pure $ uirectDashed dropBounds
+        _ -> pure $ uirectDashed dropBounds
+
+      -- shrunkBounds = shrink childMargin bounds
+      dropSize     = 36.0
+      dropGap      = 24.0
+      dropBounds   = ((ix + iw - dropGap - dropSize) × (iy + ih / 2.0 - dropSize / 2.0) × dropSize × dropSize)
+
+      insertChild l t st = flip (set substlens) st (SApp l (repeat (argCount t) Placeholder))
+
+      argCount :: RType -> Int
+      argCount (RFun args _) = L.length args
+      argCount _ = 0
+
+  | otherwise = pure $ g [] []
+child _ _ _ _ _ _ = pure $ g [] []
+
 typeComponent :: forall eff.
                  AppState
+              -> RType
               -> Rect
               -> Lens' AppState (L.List Substitution)
               -> RType
-              -> SnapComponent' (Component eff AppState × Array (Component eff AppState) × Context)
-typeComponent st r ss t = typeComponent' t r ss t
+              -> SnapComponent eff
+typeComponent st tt r ss t = typeComponent' tt r ss t
   where
     typeComponent' :: RType
                    -> Rect
                    -> Lens' AppState (L.List Substitution)
                    -> RType
-                   -> SnapComponent' (Component eff AppState × Array (Component eff AppState) × Context)
+                   -> SnapComponent eff
     typeComponent' tt bounds@(bx × by × bw × bh) substs rtype
       | Just (incTypes × chTypes) <- extract rtype = do
           children' <- children
           inc'      <- inc (A.fromFoldable incTypes)
+
+          -- exts × ctx' <- ST.runStateT (traverse (ext (0.0 × 0.0)) (indexedRange $ A.fromFoldable args)) M.empty
 
           let cmp   = g [] $ concat
                 [ [ uirect bounds ]
@@ -336,7 +403,7 @@ typeComponent st r ss t = typeComponent' t r ss t
                 , children'
                 ]
 
-          pure $ cmp × undefined × undefined
+          pure cmp
       where
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
@@ -413,22 +480,22 @@ typeComponent st r ss t = typeComponent' t r ss t
             child :: Rect -> Int -> Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
             child bounds@(ix × iy × iw × ih) index (s × RArgIndex ai × l × t@(RFun args _))
               | isHOC t = do
-                exts × ctx'       <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-                childCmp' × exts' <- childCmp ctx'
+                exts × ctx' <- ST.runStateT (traverse (ext (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+                childCmp'   <- childCmp ctx'
 
                 snappableRect dropBounds insertChild $ g [] $ concat
                   [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
                   , [ childCmp' ]
-                  , exts'
+                  , exts
                   ]
                 where
                   childCmp ctx' = case s of
                     Just (SApp fs ss) -> case labeltype fs tt of
                       Just t' -> do
-                        tcmp × exts' × _ <- typeComponent' tt dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
-                        pure $ tcmp × exts'
-                      Nothing -> pure $ uirectDashed dropBounds × []
-                    _ -> pure $ uirectDashed dropBounds × []
+                        tcmp <- typeComponent' tt dropBounds (substs <<< lensAtL ai <<< _SApp' <<< _2) t'
+                        pure tcmp
+                      Nothing -> pure $ uirectDashed dropBounds
+                    _ -> pure $ uirectDashed dropBounds
 
                   -- shrunkBounds = shrink childMargin bounds
                   dropSize     = 36.0
@@ -445,7 +512,7 @@ typeComponent st r ss t = typeComponent' t r ss t
 
               | otherwise = pure $ g [] []
             child _ _ _ = pure $ g [] []
-      | otherwise = pure $ g [] [] × [] × M.empty
+      | otherwise = pure $ g [] []
 
 --------------------------------------------------------------------------------
 
