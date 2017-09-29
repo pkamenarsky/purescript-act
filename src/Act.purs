@@ -267,6 +267,9 @@ zipMaybe (L.Cons a as) (L.Cons b bs) = L.Cons (Just a × b) (zipMaybe as bs)
 zipMaybe L.Nil (L.Cons b bs) = L.Cons (Nothing × b) (zipMaybe L.Nil bs)
 zipMaybe _ L.Nil = L.Nil
 
+-- (c -> Maybe b) -> (a -> a) × (c -> Maybe b)
+-- SnapM \f -> id × f
+
 -- TODO: Product (Kleisli c (Maybe b)) (Identity a)
 data SnapM c b a = SnapM (c -> Maybe b) a
 
@@ -291,6 +294,9 @@ snappable f a = SnapM f a
 
 snap :: forall a b c. SnapM c b a -> c -> Maybe b
 snap (SnapM f _) c = f c
+
+withSnap :: forall a b c. SnapM c b a -> ((c -> Maybe b) -> SnapM c b a)
+withSnap = undefined
 
 snapValue :: forall a b c. SnapM c b a -> a
 snapValue (SnapM _ a) = a
@@ -318,7 +324,7 @@ type Context = M.Map Label Vec
 
 type Level = Int
 
-ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.State Context (Component eff AppState)
+ext :: forall eff. SnapF -> Vec -> (Int × Label × RType) -> ST.StateT Context SnapComponent' (Component eff AppState)
 ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -355,20 +361,21 @@ ext snap (ox × oy) (i × l × t) = do
 child :: forall eff. AppState -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
 child st ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
-
-    let extsctx = defer $ \_ -> ST.runState (traverse (ext (snap (force cmp >>= snappableRect dropBounds insertChild)) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
-        cmp     = defer $ \_ -> case s of
+     
+    let pos i = (ix + (3.0 * gap) × (iy + gap) + (tn i * gap))
+    let ctx' = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+    let cmp = snappableRect dropBounds insertChild =<< case s of
           Just (SApp fs ss) -> case labeltype fs tt of
-            Just t' -> typeComponent st ctx {- (M.union ctx (snd $ force extsctx)) -} tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
+            Just t' -> typeComponent st (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
             Nothing -> pure $ uirectDashed' dropBounds "#f00"
           _ -> pure $ uirectDashed' dropBounds "#0f0"
+    exts × ctx' <- ST.runStateT (traverse (ext (snap cmp) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)) M.empty
+    cmp' <- cmp
 
-    childCmp' <- force cmp
-
-    snappableRect dropBounds insertChild $ g [] $ concat
+    pure $ g [] $ concat
       [ [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
-      , [ childCmp' ]
-      , fst (force extsctx)
+      , [ cmp' ]
+      , exts
       ]
     where
       -- shrunkBounds = shrink childMargin bounds
@@ -452,9 +459,9 @@ typeComponent st ctx tt r ss t = typeComponent' tt r ss t
         inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
           snappableCircle 10.0 (pos i) (insertArg t ai) $ g [] $ concat
             [ [ uicircle (pos i) (UILabelRight $ show t) ]
-            -- , case connected ctx ai of
-            --     Just pos' -> [ line pos' (pos i) ]
-            --     Nothing   -> []
+            , case connected ctx ai of
+                Just pos' -> [ line pos' (pos i) ]
+                Nothing   -> []
             ]
           where
             pos i = (bx - (gap * 3.0) × by + (tn i * gap))
