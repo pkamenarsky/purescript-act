@@ -105,14 +105,14 @@ showUnfcs :: M.Map Var Const -> String
 showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M.toUnfoldable m :: Array (Var × Const))
 
 ui :: forall eff. Component eff AppState
-ui = state \st -> div [] $
+ui = state \st -> let snap × cmp' = cmp st in div [] $
  [ div [ class_ "search-split" ]
-   [ searchComponent st
+   [ searchComponent st (offset snap)
    ]
  , div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
-         cmp st
+         cmp'
        ]
    , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
@@ -129,17 +129,21 @@ ui = state \st -> div [] $
         ] ]
       _ -> []
  where
+   offset :: SnapF -> SnapF
+   offset snap (Left (bx × by × bw × bh)) = snap $ Left (bx - 300.0 × by × bw × bh)
+   offset snap (Right (vx × vy))          = snap $ Right (vx - 300.0 × vy)
+
    cmp st
-     | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = g [] $ concat
+     | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = (snap cmp) × (g [] $ concat
          [ [ snapValue cmp ]
          , snapValue exts
-         ]
+         ])
          where
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
            exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
            cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
-     | otherwise = g [] []
+     | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
 
@@ -586,21 +590,21 @@ refArray = [ listCR, tweetCR, tweetsR ]
 
 --------------------------------------------------------------------------------
 
-searchComponent :: forall eff. AppState -> Component eff AppState
-searchComponent st
+searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
+searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg _) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] 
         [ div [ class_ "cell" ]
           [ div [ class_ "title" ] [ text "TweetComponent" ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-              [ snapValue $ ext undefined UILabelTopLeft (230.0 × 73.0) (0 × arg)
+              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (0 × arg)
               ]
           ]
         , div [ class_ "cell" ]
           [ div [ class_ "title" ] [ text "TweetComponent" ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-              [ snapValue $ ext undefined UILabelTopLeft (230.0 × 73.0) (0 × arg)
+              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (0 × arg)
               ]
           ]
         ]
@@ -608,7 +612,7 @@ searchComponent st
     ]
     where
       pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
-      exts  = traverse (ext (snap cmp) UILabelLeft (50.0 × (80.0 + gap))) (indexedRange $ A.fromFoldable args)
+      exts  = traverse (ext snap UILabelLeft (50.0 × (80.0 + gap))) (indexedRange $ A.fromFoldable args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
       cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
   | otherwise = div [] []
