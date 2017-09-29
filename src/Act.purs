@@ -131,8 +131,10 @@ ui = state \st -> div []
          , snapValue exts
          ]
          where
-           exts = traverse (ext (snap cmp) (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
-           cmp  = child st Full M.empty st.rtype (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+           pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
+           exts  = traverse (ext (snap cmp) (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+           ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+           cmp   = child st Full ctx' st.rtype (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
