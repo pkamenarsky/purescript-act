@@ -126,8 +126,13 @@ ui = state \st -> div []
  ]
  where
    cmp st
-     | Just (incTypes × L.Cons chType L.Nil) <- extract st.rtype =
-         snapValue $ child st Full M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
+     | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = g [] $ concat
+         [ [ snapValue cmp ]
+         , snapValue exts
+         ]
+         where
+           exts = traverse (ext (snap cmp) (100.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
+           cmp  = child st Full M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -363,8 +368,10 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
   | isHOC t = do
      
     let pos i = (ix + (3.0 * gap) × (iy + gap) + (tn i * gap))
-    let ctx' = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
-    let cmp = snappableRect dropBounds insertChild =<< case s of
+        ctx'  = case style of
+          Full    -> M.empty
+          Compact -> M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+        cmp   = snappableRect dropBounds insertChild =<< case s of
           Just (SApp fs ss) -> case labeltype fs tt of
             Just t' -> typeComponent st style (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
             Nothing -> pure $ uirectDashed' dropBounds "#f00"
@@ -376,11 +383,11 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
     pure $ g [] $ concat
       [ case style of
           Compact -> [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
-          _       -> [ line (ix × (iy + ih)) ((ix + iw) × (iy + ih)) ]
+          _       -> []
       , [ cmp' ]
       , case style of
           Compact -> exts
-          _       -> exts
+          _       -> []
       ]
     where
       -- shrunkBounds = shrink childMargin bounds
