@@ -113,7 +113,7 @@ ui = state \st -> div []
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
          Just (DragHOC { hoc, label, pos: (px × py) }) ->
-           [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
+           [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × dropSize × dropSize) (_const L.Nil) hoc
            ]
          _ -> []
    , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
@@ -134,7 +134,7 @@ ui = state \st -> div []
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
            exts  = traverse (ext (snap cmp) (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
-           cmp   = child st Full ctx' st.rtype (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (300.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = g [] []
 
 --------------------------------------------------------------------------------
@@ -339,7 +339,7 @@ ext snap (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        case snap (Left (e.pageX × e.pageY × 200.0 × 100.0)) of
+        case snap (Left (e.pageX × e.pageY × dropSize × dropSize)) of
           Just (Left f) -> modify (f l t)
           _             -> modify \st -> st { debug = "no drop target" }
   ]
@@ -365,6 +365,9 @@ ext snap (ox × oy) (i × l × t) = pure $ g
 
 data ChildStyle = Full | Compact
 
+dropSize :: Number
+dropSize = 36.0
+
 child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
 child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
@@ -376,8 +379,8 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
         cmp   = snappableRect dropBounds insertChild =<< case s of
           Just (SApp fs ss) -> case labeltype fs tt of
             Just t' -> typeComponent st style (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
-            Nothing -> pure $ uirectDashed' dropBounds "#f00"
-          _ -> pure $ uirectDashed' dropBounds "#0f0"
+            Nothing -> pure $ uirectDashed' dropBounds "#ccc"
+          _ -> pure $ uirectDashed' dropBounds "#ccc"
 
     exts <- traverse (ext (snap cmp) (ix × (iy + gap))) (indexedRange $ A.fromFoldable args)
     cmp' <- cmp
@@ -395,7 +398,6 @@ child st style ctx tt bounds@(ix × iy × iw × ih) (substlens × s × RArgIndex
       -- shrunkBounds = shrink childMargin bounds
       -- childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
-      dropSize     = 36.0
       dropGap      = 24.0
       dropBounds   = case style of
         Full    -> bounds

@@ -11,3 +11,4 @@
 ** when dragging component from side bar, only show fitting placeholders in UI
 * split UI
 ** need Maybe Substitution? would Placeholder work?
+** compute unification from substitution, else unification stays forever
