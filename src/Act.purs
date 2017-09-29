@@ -106,10 +106,7 @@ showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M
 
 ui :: forall eff. Component eff AppState
 ui = state \st -> let snap × cmp' = cmp st in div [] $
- [ div [ class_ "search-split" ]
-   [ searchComponent st (offset snap)
-   ]
- , div [ class_ "wire-split" ]
+ [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp'
@@ -117,21 +114,24 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
    , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
    ]
+ , div [ class_ "search-split" ]
+   [ searchComponent st snap
+   ]
  , div [ class_ "component-split" ]
      [ div [ class_ "component-container" ]
        [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
      ]
  ]
  <> case st.dragState of
-      Just (DragConn ds) -> [ line ds.start ds.end ]
+      Just (DragConn ds) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ] [ line ds.start ds.end ] ]
       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ]
         [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × dropSize × dropSize) (_const L.Nil) hoc
         ] ]
       _ -> []
  where
-   offset :: SnapF -> SnapF
-   offset snap (Left (bx × by × bw × bh)) = snap $ Left (bx - 300.0 × by × bw × bh)
-   offset snap (Right (vx × vy))          = snap $ Right (vx - 300.0 × vy)
+   -- offset :: SnapF -> SnapF
+   -- offset snap (Left (bx × by × bw × bh)) = snap $ Left (bx - 300.0 × by × bw × bh)
+   -- offset snap (Right (vx × vy))          = snap $ Right (vx - 300.0 × vy)
 
    cmp st
      | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = (snap cmp) × (g [] $ concat
@@ -142,7 +142,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
            exts  = traverse (ext (snap cmp) UILabelLeft (20.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
-           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (500.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
@@ -592,7 +592,7 @@ refArray = [ listCR, tweetCR, tweetsR ]
 
 searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
 searchComponent st snap
-  | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg _) _) L.Nil) <- extract st.rtype = div [] $ concat
+  | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg (L.Cons arg1 _)) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] 
         [ div [ class_ "cell" ]
@@ -604,7 +604,7 @@ searchComponent st snap
         , div [ class_ "cell" ]
           [ div [ class_ "title" ] [ text "TweetComponent" ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (0 × arg)
+              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (1 × arg1)
               ]
           ]
         ]
@@ -614,5 +614,4 @@ searchComponent st snap
       pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
       exts  = traverse (ext snap UILabelLeft (50.0 × (80.0 + gap))) (indexedRange $ A.fromFoldable args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
-      cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (200.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
   | otherwise = div [] []
