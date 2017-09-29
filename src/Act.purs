@@ -105,7 +105,7 @@ showUnfcs :: M.Map Var Const -> String
 showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M.toUnfoldable m :: Array (Var × Const))
 
 ui :: forall eff. Component eff AppState
-ui = state \st -> div []
+ui = state \st -> div [] $
  [ div [ class_ "search-split" ]
    [ searchComponent st
    ]
@@ -114,12 +114,6 @@ ui = state \st -> div []
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp st
        ]
-    <> case st.dragState of
-         Just (DragConn ds) -> [ line ds.start ds.end ]
-         Just (DragHOC { hoc, label, pos: (px × py) }) ->
-           [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × dropSize × dropSize) (_const L.Nil) hoc
-           ]
-         _ -> []
    , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
    ]
@@ -128,6 +122,12 @@ ui = state \st -> div []
        [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
      ]
  ]
+ <> case st.dragState of
+      Just (DragConn ds) -> [ line ds.start ds.end ]
+      Just (DragHOC { hoc, label, pos: (px × py) }) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ]
+        [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × dropSize × dropSize) (_const L.Nil) hoc
+        ] ]
+      _ -> []
  where
    cmp st
      | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = g [] $ concat
@@ -353,7 +353,7 @@ ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) =
           _             -> modify \st -> st { debug = "no drop target" }
   ]
   -- [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (labelf "HOC") ]
-  [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((ox + 50.5) × (oy + 50.5) × dropSize × dropSize) (_const L.Nil) t ]
+  [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) (ox × oy × dropSize × dropSize) (_const L.Nil) t ]
 ext snap labelf (ox × oy) (i × l × t) = pure $ g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV e, end: meToV e } }
@@ -591,8 +591,18 @@ searchComponent st
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg _) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] 
-        [ svg [ class_ "cell-svg", shapeRendering "geometricPrecision", width "300px", height "100px" ]
-          [ snapValue $ ext undefined UILabelTopLeft (20.0 × 30.0) (0 × arg) ]
+        [ div [ class_ "cell" ]
+          [ div [ class_ "title" ] [ text "TweetComponent" ]
+          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
+              [ snapValue $ ext undefined UILabelTopLeft (230.0 × 73.0) (0 × arg)
+              ]
+          ]
+        , div [ class_ "cell" ]
+          [ div [ class_ "title" ] [ text "TweetComponent" ]
+          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
+              [ snapValue $ ext undefined UILabelTopLeft (230.0 × 73.0) (0 × arg)
+              ]
+          ]
         ]
       ]
     ]
