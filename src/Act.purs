@@ -221,7 +221,7 @@ uirectDashed (bx × by × bw × bh)
   | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
   | otherwise            = g [] []
 
-data UILabel = UILabelLeft String | UILabelRight String
+data UILabel = UILabelLeft String | UILabelRight String | UILabelTop String
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
 uicircle (x' × y') label' = g [] $
@@ -231,6 +231,7 @@ uicircle (x' × y') label' = g [] $
   where
     uilabel (UILabelLeft str)  = label (x' - 20.0 × y' + 4.0) "end" str
     uilabel (UILabelRight str) = label (x' + 20.0 × y' + 4.0) "start" str
+    uilabel (UILabelTop str)   = label (x' - 7.0 × y' - 20.0) "start" str
 
 tn :: Int -> Number
 tn = I.toNumber
@@ -450,7 +451,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
         inc incTypes = g [] <$> flip traverse (indexedRange incTypes) \(i × ai × l × t) -> do
           snappableCircle 10.0 (pos i) (insertArg t ai) $ g [] $ concat
-            [ [ uicircle (pos i) (UILabelRight $ show t) ]
+            [ [ uicircle (pos i) (UILabelTop $ show t) ]
             , case connected ctx ai of
                 Just pos' -> [ line pos' (pos i) ]
                 Nothing   -> []
@@ -460,7 +461,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
             midy = by + bh / 2.0
             r    = 15.0
             incpath start@(sx × sy) = bezier (sx + 5.0 × sy) [H 20.0, TR, V (midy - sy - r * 2.0), BL, H (bx - sx - r * 2.0 - 20.0 - 5.0)]
-            pos i = (bx - (gap * 3.0) × by + (tn i * gap))
+            pos i = (bx - (gap * 2.0) × by - gap + (tn i * gap))
             insertArg t (RArgIndex ai) l t' st = case unify t t' of
               UEq -> flip (over substs) st \sss -> if L.length sss == 0
                 then sss
