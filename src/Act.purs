@@ -65,12 +65,12 @@ type AppState =
   { debug     :: String
   , dragState :: Maybe DragState
   , rtype     :: RType
-  , substs    :: L.List Substitution
+  , subst     :: Substitution
   , unfcs     :: M.Map Var Const
   }
 
-_substs :: Lens' AppState (L.List Substitution)
-_substs = lens (_.substs) (\st s -> st { substs = s })
+_subst :: Lens' AppState Substitution
+_subst = lens (_.subst) (\st s -> st { subst = s })
 
 _const :: forall st a. a -> Lens' st a
 _const a = lens (const a) (\st s -> st)
@@ -80,7 +80,7 @@ emptyAppState =
   { debug     : "Debug: "
   , dragState : Nothing
   , rtype     : rtypeFromRefs refArray -- type2
-  , substs    : L.Nil
+  , subst     : Placeholder
   , unfcs     : M.empty
   }
 
@@ -107,28 +107,27 @@ ui :: forall eff. Component eff AppState
 ui = state \st -> div []
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
-     $ [ snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
+     $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
        ]
     <> case st.dragState of
          Just (DragConn ds) -> [ line ds.start ds.end ]
          Just (DragHOC { hoc, label, pos: (px × py) }) ->
-           [ snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
+           [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × 200.0 × 100.0) (_const L.Nil) hoc
            ]
          _ -> []
-   , case st.substs of
-       L.Cons s _ -> code [] [ text $ showUnfcs st.unfcs <> " # " <> show s <> " # " <> show (substituteC st.rtype s) ]
-       _ -> code [] []
+   , code [] [ text $ showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
    ]
  , div [ class_ "component-split" ]
      [ div [ class_ "component-container" ]
-       [ resultCmp st ]
+       [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
      ]
  ]
  where
-   resultCmp st = case st.substs of
-     L.Cons s _ -> componentFromRefs (substituteC st.rtype s) refArray
-     _          -> div [] []
+   cmp st
+     | Just (incTypes × L.Cons chType L.Nil) <- extract st.rtype =
+         snapValue $ child st M.empty st.rtype (50.5 × 100.5 × 700.0 × 400.0) _subst (Nothing × chType)
+     | otherwise = div [] []
 
 --------------------------------------------------------------------------------
 
