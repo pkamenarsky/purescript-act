@@ -72,6 +72,8 @@ type AppState =
   , rtype     :: RType
   , subst     :: Substitution
   , unfcs     :: M.Map Var Const
+
+  , tabbedSt  :: Boolean
   }
 
 _subst :: Lens' AppState Substitution
@@ -87,6 +89,8 @@ emptyAppState =
   , rtype     : rtypeFromRefs refArray -- type2
   , subst     : Placeholder
   , unfcs     : M.empty
+
+  , tabbedSt  : true
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -604,9 +608,11 @@ tabbedCR = mkRef listCT listComponent
   where
     listCT = fun [ pure $ lensT boolT, fun [] component, fun [] component ] component
 
-    listComponent :: forall a eff st. Lens' st Boolean -> Component eff st -> Component eff st -> Component eff st
-    listComponent active cmp1 cmp2 = div [ class_ "fill" ]
-      [ cmp1, cmp2 ]
+    listComponent :: forall a eff st. ALens' st Boolean -> Component eff st -> Component eff st -> Component eff st
+    listComponent active cmp1 cmp2 = state \st -> div [ class_ "fill" ]
+      if st ^. cloneLens active
+        then [ cmp1 ]
+        else [ cmp2 ]
 
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
@@ -643,8 +649,14 @@ cubeR = mkRef (pure objectT) "cube"
 dodecahedronR :: Ref
 dodecahedronR = mkRef (pure objectT) "dodecahedron"
 
+tabbedStateR :: Ref
+tabbedStateR = mkRef (pure $ lensT boolT) lns
+  where
+    lns :: ALens' AppState Boolean
+    lns = lens (\st -> st.tabbedSt) (\st v -> st { tabbedSt = v })
+
 refArray :: Array Ref
-refArray = [ tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
+refArray = [ tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))

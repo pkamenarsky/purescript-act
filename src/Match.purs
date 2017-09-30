@@ -50,7 +50,7 @@ instance eqConst :: Eq Const where
 
 data RType = RVar Var
            | RConst Const
-           -- | RRecord (Array (String × String))
+           | RRecord (List (Label × RType))
            | RApp RType RType
            | RFun (List (Label × RType)) RType
 
@@ -59,7 +59,7 @@ derive instance genericRType :: Generic RType
 instance showRType :: Show RType where
   show (RVar (Var a))     = a
   show (RConst (Const a)) = a
-  -- show (RRecord m)        = "{" <> joinWith "," (map (\(f × t) -> f <> ": " <> t) m) <> "}"
+  show (RRecord m)        = "{" <> joinWith ", " (A.fromFoldable $ map (\(f × t) -> f <> ": " <> show t) m) <> "}"
   show (RApp (RConst (Const "Array")) b) = "▓ " <> show b <> ""
   show (RApp (RConst (Const "Lens")) b)  = "◈ " <> show b <> ""
   show (RApp a b)         = show a <> "<" <> show b <> ">"
@@ -92,6 +92,9 @@ location = RConst (Const "Location")
 
 component :: RType
 component = RConst (Const "Component")
+
+record :: Array (Label × RType) -> RType
+record m = RRecord (L.fromFoldable m)
 
 array :: RType -> RType
 array t = RApp (RConst (Const "Array")) t
@@ -214,6 +217,7 @@ specialize' (Var v) c@(Const _) t@(RVar (Var v'))
   | otherwise = t
 specialize' v c (RApp f x)  = RApp f (specialize' v c x)
 specialize' v c (RFun f xs) = RFun (map (\(l × t) -> l × specialize' v c t) f) (specialize' v c xs)
+specialize' v c (RRecord fs) = RRecord (map (\(l × t) -> l × specialize' v c t) fs)
 
 --------------------------------------------------------------------------------
 
