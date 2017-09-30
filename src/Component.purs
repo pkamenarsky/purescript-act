@@ -319,6 +319,9 @@ wrap elem props children = { render: \effect st -> [ elem ] }
 wrapClass :: forall eff props st. R.ReactClass props -> props -> Component eff st
 wrapClass elem props = { render: \effect st -> [ R.createFactory elem props ] }
 
+i_ :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+i_ props children = { render: \effect st -> [ R.i (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 

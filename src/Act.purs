@@ -72,6 +72,7 @@ type AppState =
   , rtype     :: RType
   , subst     :: Substitution
   , unfcs     :: M.Map Var Const
+  , search    :: String
 
   , tabbedSt  :: Boolean
   , strSt     :: String
@@ -90,6 +91,7 @@ emptyAppState =
   , rtype     : rtypeFromRefs refArray -- type2
   , subst     : Placeholder
   , unfcs     : M.empty
+  , search    : ""
 
   , tabbedSt  : true
   , strSt     : ""
@@ -712,17 +714,23 @@ refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetC
 
 --------------------------------------------------------------------------------
 
+-- TODO: search
+
 searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
 searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = div [] $ concat
-    [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
+    [ [ div [ class_ "search-container" ]
+        [ div [ class_ "search-icon" ] [ i_ [ class_ "icon ion-search" ] []]
+        , div [ class_ "input-container" ] [ input [ onChange \e -> modify \st -> st { search = (unsafeCoerce e).target.value } ] [] ] ]
+        ]
     , [ div [ class_ "container" ] (catMaybes exts)
       , div [ class_ "datamodel" ] [ svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
       ]
     ]
     where
       cell (i × arg@(_ × RFun _ _))
-        | Just (label × _ × _) <- A.index refArray i = Just $ div [ class_ "cell" ]
+        | Just (label × _ × _) <- A.index refArray i
+        , S.contains (S.Pattern $ S.toLower st.search) (S.toLower label) = Just $ div [ class_ "cell" ]
           [ div [ class_ "title" ] [ text label ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
               [ snapValue $ ext snap UILabelTopLeft (230.5 × 32.5) (i × arg)
