@@ -256,6 +256,9 @@ placeholder v _ = P.placeholder v
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
 
+src :: forall eff st. String -> Props eff st
+src v _ = P.src v
+
 class_ :: forall eff st. String -> Props eff st
 class_ v _ = P.unsafeMkProps "className" v
 
@@ -330,6 +333,9 @@ i_ props children = { render: \effect st -> [ R.i (map (\p -> p effect) props) (
 
 div :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 div props children = { render: \effect st -> [ R.div (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
+
+img :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
+img props children = { render: \effect st -> [ R.img (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }
 
 -- style :: forall eff st. Array (Props eff st) -> Array (Component eff st) -> Component eff st
 -- style props children = { render: \effect st -> [ R.style (map (\p -> p effect) props) (concatMap (\e -> e.render effect st) children) ] }

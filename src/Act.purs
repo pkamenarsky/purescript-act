@@ -117,8 +117,9 @@ showUnfcs :: M.Map Var Const -> String
 showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M.toUnfoldable m :: Array (Var × Const))
 
 ui :: forall eff. Component eff AppState
-ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable" ] $
- [ div [ class_ "wire-split" ]
+ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" ] $
+ [ div [ class_ "logo" ] [ img [ src "logo.png" ] [] ]
+ , div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp'
