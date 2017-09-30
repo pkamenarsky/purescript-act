@@ -562,27 +562,23 @@ testUI = div [ class_ "component-split" ]
 
 --------------------------------------------------------------------------------
 
-type Ref  = Unit × TypeM RType
-type Ref' = Unit
+type Ref  = String × Unit × TypeM RType
 
-mkRef :: forall a. TypeM RType -> a -> Ref
-mkRef rtype cmp = unsafeCoerce cmp × rtype
-
-mkRef' :: forall a. a -> Ref'
-mkRef' = unsafeCoerce
+mkRef :: forall a. String -> TypeM RType -> a -> Ref
+mkRef label rtype cmp = label × unsafeCoerce cmp × rtype
 
 rtypeFromRefs :: Array Ref -> RType
-rtypeFromRefs refs = runType $ fun [ fun (map snd refs) component] component 
+rtypeFromRefs refs = runType $ fun [ fun (map (\(_ × _ × x) -> x) refs) component] component 
 
 componentFromRefs :: forall eff st. Expr -> Array Ref -> Component eff st
 componentFromRefs e args
-  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map fst args)
+  | Just js <- exprToJS e = applyJSFun (jsFunFromString js) (map (\(_ × x × _) -> x) args)
   | otherwise             = div [] []
 
 --------------------------------------------------------------------------------
 
 mapsCR :: Ref
-mapsCR = mkRef listCT mapComponent 
+mapsCR = mkRef "Map component" listCT mapComponent 
   where
     listCT = fun [ ] component
 
@@ -590,7 +586,7 @@ mapsCR = mkRef listCT mapComponent
     mapComponent = wrapClass pigeonMap unit
 
 threeCR :: Ref
-threeCR = mkRef listCT threeComponent 
+threeCR = mkRef "3D Renderer" listCT threeComponent 
   where
     listCT = fun [ pure objectT ] component
 
@@ -598,7 +594,7 @@ threeCR = mkRef listCT threeComponent
     threeComponent obj = wrapClass three { geometry: obj }
 
 listCR :: Ref
-listCR = mkRef listCT listComponent 
+listCR = mkRef "List component" listCT listComponent 
   where
     listCT = fun [ pure $ array a, fun [ pure a ] component ] component
 
@@ -606,7 +602,7 @@ listCR = mkRef listCT listComponent
     listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
 tabbedCR :: Ref
-tabbedCR = mkRef listCT tabbedComponent 
+tabbedCR = mkRef "Tabbed component" listCT tabbedComponent 
   where
     listCT = fun [ pure $ lensT boolT, fun [] component, fun [] component ] component
 
@@ -623,7 +619,7 @@ tabbedCR = mkRef listCT tabbedComponent
         activate v = modify' (cloneLens active) (const v)
 
 splitCR :: Ref
-splitCR = mkRef listCT splitComponent 
+splitCR = mkRef "Split component" listCT splitComponent 
   where
     listCT = fun [ fun [] component, fun [] component ] component
 
@@ -634,7 +630,7 @@ splitCR = mkRef listCT splitComponent
       ]
 
 inputCR :: Ref
-inputCR = mkRef tweetCT inputComponent
+inputCR = mkRef "Input component" tweetCT inputComponent
   where
     tweetCT = fun [ pure $ lensT stringT ] component
 
@@ -646,7 +642,7 @@ inputCR = mkRef tweetCT inputComponent
         setvalue v = modify' (cloneLens str) (const v)
 
 textCR :: Ref
-textCR = mkRef tweetCT textComponent
+textCR = mkRef "Text component" tweetCT textComponent
   where
     tweetCT = fun [ pure $ lensT stringT ] component
 
@@ -656,7 +652,7 @@ textCR = mkRef tweetCT textComponent
       ]
 
 tweetCR :: Ref
-tweetCR = mkRef tweetCT tweetComponent
+tweetCR = mkRef "Tweet component" tweetCT tweetComponent
   where
     tweetCT = fun [ pure tweetT ] component
 
@@ -685,22 +681,22 @@ objectT :: RType
 objectT = RConst (Const "3D")
 
 tweetsR :: Ref
-tweetsR = mkRef (pure $ array tweetT) tweets
+tweetsR = mkRef "Tweets" (pure $ array tweetT) tweets
 
 cubeR :: Ref
-cubeR = mkRef (pure objectT) "cube"
+cubeR = mkRef "Cube" (pure objectT) "cube"
 
 dodecahedronR :: Ref
-dodecahedronR = mkRef (pure objectT) "dodecahedron"
+dodecahedronR = mkRef "Dodecahedron" (pure objectT) "dodecahedron"
 
 tabbedStateR :: Ref
-tabbedStateR = mkRef (pure $ lensT boolT) lns
+tabbedStateR = mkRef "Switch" (pure $ lensT boolT) lns
   where
     lns :: ALens' AppState Boolean
     lns = lens (\st -> st.tabbedSt) (\st v -> st { tabbedSt = v })
 
 strStateR :: Ref
-strStateR = mkRef (pure $ lensT stringT) lns
+strStateR = mkRef "Text" (pure $ lensT stringT) lns
   where
     lns :: ALens' AppState String
     lns = lens (\st -> st.strSt) (\st v -> st { strSt = v })
