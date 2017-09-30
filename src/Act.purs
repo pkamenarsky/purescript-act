@@ -115,7 +115,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp'
        ]
-   , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
+   -- , code [] [ text $ st.debug <> " # " <> showUnfcs st.unfcs <> " # " <> show st.subst <> " # " <> show (substituteC st.rtype st.subst) ]
    -- , state \st -> code [] [ text st.debug ]
    ]
  , div [ class_ "search-split" ]
@@ -141,7 +141,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
    cmp st
      | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = (snap cmp) × (g [] $ concat
          [ [ snapValue cmp ]
-         , snapValue exts
+         -- , snapValue exts
          ])
          where
            pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
@@ -624,16 +624,18 @@ searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
 searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg (L.Cons arg1 _)) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
-    , [ div [ class_ "container" ] exts
+    , [ div [ class_ "container" ] (catMaybes exts)
       ]
     ]
     where
-      cell (i × arg) = div [ class_ "cell" ]
+      cell (i × arg@(_ × RFun _ _)) = Just $ div [ class_ "cell" ]
         [ div [ class_ "title" ] [ text "TweetComponent" ]
         , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
             [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (i × arg)
             ]
         ]
+      cell _ = Nothing
+
       pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
       exts  = map cell (indexedRange $ A.fromFoldable args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
