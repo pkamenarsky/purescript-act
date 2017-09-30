@@ -61,6 +61,7 @@ instance showRType :: Show RType where
   show (RConst (Const a)) = a
   -- show (RRecord m)        = "{" <> joinWith "," (map (\(f × t) -> f <> ": " <> t) m) <> "}"
   show (RApp (RConst (Const "Array")) b) = "▓ " <> show b <> ""
+  show (RApp (RConst (Const "Lens")) b)  = "◈ " <> show b <> ""
   show (RApp a b)         = show a <> "<" <> show b <> ">"
   show (RFun as r)        = "(" <> joinWith " -> " (A.fromFoldable (map (\(l × t) -> l <> " : " <> show t) as <> (Cons (show r) Nil))) <> ")"
 

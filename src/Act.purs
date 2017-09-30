@@ -602,10 +602,11 @@ listCR = mkRef listCT listComponent
 tabbedCR :: Ref
 tabbedCR = mkRef listCT listComponent 
   where
-    listCT = fun [ fun [] component, fun [] component ] component
+    listCT = fun [ pure $ lensT boolT, fun [] component, fun [] component ] component
 
-    listComponent :: forall a eff st. Component eff st -> Component eff st -> Component eff st
-    listComponent cmp1 cmp2 = div [ class_ "list" ] [ cmp1, cmp2 ]
+    listComponent :: forall a eff st. Lens' st Boolean -> Component eff st -> Component eff st -> Component eff st
+    listComponent active cmp1 cmp2 = div [ class_ "fill" ]
+      [ cmp1, cmp2 ]
 
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
@@ -620,6 +621,12 @@ tweetCR = mkRef tweetCT tweetComponent
       , div [ class_ "icon2" ] [ ]
       , div [ class_ "icon3" ] [ ]
       ]
+
+lensT :: RType -> RType
+lensT t = RApp (RConst (Const "Lens")) t
+
+boolT :: RType
+boolT = RConst (Const "Bool")
 
 tweetT :: RType
 tweetT = RConst (Const "Tweet")
