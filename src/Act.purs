@@ -147,7 +147,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
 
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
 
-           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (500.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (450.5 × 150.5 × 260.0 × 360.0) (_subst × Just st.subst × chType)
      | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ repeat 0 _ = L.Nil
 repeat n a = L.Cons a (repeat (n - 1) a)
 
 arrayRange :: forall a. Array a -> Array Int
-arrayRange a = 0 .. (length a - 1)
+arrayRange a = 0 .. (max (length a - 1) 0)
 
 indexedRange :: forall a. Array a -> Array (Int × a)
 indexedRange a = zip (arrayRange a) a
@@ -424,7 +424,7 @@ child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex
           Compact -> exts
           _       -> []
       , case style of
-          Compact -> flip map (0 .. (L.length args - 1)) \i -> incpath (pos i)
+          Compact -> if L.length args > 0 then flip map (0 .. (L.length args - 1)) \i -> incpath (pos i) else []
           _       -> []
       ]
     where
@@ -599,6 +599,14 @@ listCR = mkRef listCT listComponent
     listComponent :: forall a eff st. Array a -> (a -> Component eff st) -> Component eff st
     listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
+tabbedCR :: Ref
+tabbedCR = mkRef listCT listComponent 
+  where
+    listCT = fun [ fun [] component, fun [] component ] component
+
+    listComponent :: forall a eff st. Component eff st -> Component eff st -> Component eff st
+    listComponent cmp1 cmp2 = div [ class_ "list" ] [ cmp1, cmp2 ]
+
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
   where
@@ -629,7 +637,7 @@ dodecahedronR :: Ref
 dodecahedronR = mkRef (pure objectT) "dodecahedron"
 
 refArray :: Array Ref
-refArray = [ listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
+refArray = [ tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
