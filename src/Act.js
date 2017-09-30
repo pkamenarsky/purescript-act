@@ -7,7 +7,7 @@ exports.three = React.createClass({
     var geometry = new THREE.BoxGeometry( 200,200,200);
 
     var geometry = new THREE.DodecahedronGeometry(200, 1);
-    var geometrywf = new THREE.DodecahedronGeometry(210, 1);
+    var geometrywf = new THREE.DodecahedronGeometry(205, 1);
 
     var material = new THREE.MeshBasicMaterial({
       color: 0x333333,
@@ -20,7 +20,6 @@ exports.three = React.createClass({
 
     var cubepropswf = {};
     cubepropswf.geometry = geometrywf;
-    cubepropswf.scale = THREE.Vector3(1.2, 1.2, 1.2);
     cubepropswf.material = materialwf;
 
     var cubeprops = {};
