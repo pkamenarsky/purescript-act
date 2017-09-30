@@ -3,25 +3,51 @@ var ReactTHREE = require('react-three');
 var THREE = require('three');
 
 exports.three = React.createClass({
-  render: function() {
-    // return React.createElement('div', null, "Hello world");
-    this.props =
-      { width: 300,
-        height: 600,
-        
+  getInitialState: function() {
+    // base initial size on window size minus border size
+    var width = 300;
+    var height = 500;
+
+    return {width:width, height:height, cameraazimuth:0};
+  },
+
+  componentDidMount: function() {
+    var componentinstance = this;
+    var animationcallback = function(/*t*/) {
+      var newazimuth = componentinstance.state.cameraazimuth + 0.01;
+
+      var newstate = {
+        cameraazimuth: newazimuth,
+        spincameracallback: requestAnimationFrame(animationcallback)
       };
 
+      componentinstance.setState(newstate);
+    };
+
+    componentinstance.setState({spincameracallback:requestAnimationFrame(animationcallback)});
+  },
+
+  componentWillUnmount: function() {
+    if (this.state.spincameracallback !== null) {
+      cancelAnimationFrame(this.state.spincameracallback);
+    }
+    window.removeEventListener('resize',this.state.resizecallback);
+  },
+
+  render: function() {
     var MainCameraElement = React.createElement(
       ReactTHREE.PerspectiveCamera,
-      {name:'maincamera', fov:'75', aspect:this.props.width/this.props.height,
+      {name:'maincamera', fov:'75', aspect:this.state.width/this.state.height,
        near:1, far:5000,
        position:new THREE.Vector3(0,0,600), lookat:new THREE.Vector3(0,0,0)});
 
     var geometry = new THREE.BoxGeometry( 200,200,200);
-    var geometry = new THREE.DodecahedronGeometry(200, 0);
+
+    var geometry = new THREE.DodecahedronGeometry(200, 1);
+    var geometrywf = new THREE.DodecahedronGeometry(210, 1);
 
     var material = new THREE.MeshBasicMaterial({
-      color: 0xdddddd,
+      color: 0x333333,
       wireframe: false,
     });
     var materialwf = new THREE.MeshBasicMaterial({
@@ -32,33 +58,33 @@ exports.three = React.createClass({
     // var material = new THREE.MeshDepthMaterial({
     //   wireframe: true
     // });
-    geometry.rotateY(1);
+    geometry.rotateY(this.state.cameraazimuth);
+    geometrywf.rotateY(this.state.cameraazimuth);
 
     var cubepropswf = {};
-    cubepropswf.geometry = geometry;
-    cubepropswf.position = THREE.Vector3(0, 0, 20);
+    cubepropswf.geometry = geometrywf;
+    cubepropswf.scale = THREE.Vector3(1.2, 1.2, 1.2);
     cubepropswf.material = materialwf;
 
     var cubeprops = {};
     cubeprops.geometry = geometry;
-    cubeprops.position = THREE.Vector3(0, 0, 20);
     cubeprops.material = material;
 
     return React.createElement(
       ReactTHREE.Renderer,
-      { width:this.props.width,
-        height:this.props.height,
+      { width:this.state.width,
+        height:this.state.height,
         background: 0xffffff,
       },
       React.createElement(
         ReactTHREE.Scene,
-        {width:this.props.width, height:this.props.height, camera:'maincamera'},
+        {width:this.state.width, height:this.state.height, camera:'maincamera'},
         MainCameraElement,
         React.createElement(ReactTHREE.Mesh, cubeprops)
       ),
       React.createElement(
         ReactTHREE.Scene,
-        {width:this.props.width, height:this.props.height, camera:'maincamera'},
+        {width:this.state.width, height:this.state.height, camera:'maincamera'},
         MainCameraElement,
         React.createElement(ReactTHREE.Mesh, cubepropswf)
       )

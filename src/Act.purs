@@ -121,7 +121,8 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
    ]
  , div [ class_ "component-split" ]
      [ div [ class_ "component-container" ]
-       [ wrapClass three unit ] -- componentFromRefs (substituteC st.rtype st.subst) refArray ]
+       [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
+       -- [ wrapClass three unit ]
      ]
  ]
  <> case st.dragState of
@@ -553,6 +554,14 @@ componentFromRefs e args
 
 --------------------------------------------------------------------------------
 
+threeCR :: Ref
+threeCR = mkRef listCT threeComponent 
+  where
+    listCT = fun [ ] component
+
+    threeComponent :: forall eff st. Component eff st
+    threeComponent = wrapClass three unit
+
 listCR :: Ref
 listCR = mkRef listCT listComponent 
   where
@@ -582,7 +591,7 @@ tweetsR :: Ref
 tweetsR = mkRef (pure $ array tweetT) tweets
 
 refArray :: Array Ref
-refArray = [ listCR, tweetCR, tweetsR ]
+refArray = [ listCR, threeCR, tweetCR, tweetsR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
