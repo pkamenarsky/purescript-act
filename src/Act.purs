@@ -233,7 +233,7 @@ uirectDashed (bx × by × bw × bh)
   | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
   | otherwise            = g [] []
 
-data UILabel = UILabelLeft String | UILabelRight String | UILabelTopLeft String | UILabelTopRight String
+data UILabel = UILabelLeft String | UILabelRight String | UILabelTopLeft String | UILabelTopRight String | UILabelNone
 
 uicircle :: forall eff st. Vec -> UILabel -> Component eff st
 uicircle (x' × y') label' = g [] $
@@ -245,6 +245,7 @@ uicircle (x' × y') label' = g [] $
     uilabel (UILabelRight str)    = label (x' + 20.0 × y' + 4.0) "start" str
     uilabel (UILabelTopLeft str)  = label (x' - 5.0 × y' - 15.0) "start" str
     uilabel (UILabelTopRight str) = label (x' + 5.0 × y' - 15.0) "end" str
+    uilabel UILabelNone           = g [] []
 
 tn :: Int -> Number
 tn = I.toNumber
@@ -631,7 +632,7 @@ searchComponent st snap
       cell (i × arg@(_ × RFun _ _)) = Just $ div [ class_ "cell" ]
         [ div [ class_ "title" ] [ text "TweetComponent" ]
         , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-            [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (i × arg)
+            [ snapValue $ ext snap UILabelTopLeft (230.0 × 50.0) (i × arg)
             ]
         ]
       cell _ = Nothing
