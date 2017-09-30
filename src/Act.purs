@@ -481,7 +481,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
             midy = by + bh / 2.0
             r    = 15.0
             incpath start@(sx × sy) = bezier (sx + 5.0 × sy) [H 20.0, TR, V (midy - sy - r * 2.0), BL, H (bx - sx - r * 2.0 - 20.0 - 5.0)]
-            pos i = (bx - (gap * 2.0) × by - gap + (tn i * gap))
+            pos i = (bx - (gap * 2.0) × by - 15.0 + (tn i * gap))
             insertArg t (RArgIndex ai) l t' st = case unify t t' of
               UEq -> flip (over substs) st \sss -> if L.length sss == 0
                 then sss
@@ -610,7 +610,7 @@ dodecahedronR :: Ref
 dodecahedronR = mkRef (pure objectT) "dodecahedron"
 
 refArray :: Array Ref
-refArray = [ listCR, mapsCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
+refArray = [ listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
@@ -624,24 +624,17 @@ searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
 searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg (L.Cons arg1 _)) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
-    , [ div [ class_ "container" ] 
-        [ div [ class_ "cell" ]
-          [ div [ class_ "title" ] [ text "ListComponent" ]
-          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (0 × arg)
-              ]
-          ]
-        , div [ class_ "cell" ]
-          [ div [ class_ "title" ] [ text "TweetComponent" ]
-          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-              [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (1 × arg1)
-              ]
-          ]
-        ]
+    , [ div [ class_ "container" ] exts
       ]
     ]
     where
+      cell (i × arg) = div [ class_ "cell" ]
+        [ div [ class_ "title" ] [ text "TweetComponent" ]
+        , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
+            [ snapValue $ ext snap UILabelTopLeft (230.0 × 73.0) (i × arg)
+            ]
+        ]
       pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
-      exts  = traverse (ext snap UILabelLeft (50.0 × (80.0 + gap))) (indexedRange $ A.fromFoldable args)
+      exts  = map cell (indexedRange $ A.fromFoldable args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
   | otherwise = div [] []
