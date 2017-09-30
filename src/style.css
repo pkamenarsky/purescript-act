@@ -281,3 +281,37 @@
 .tabbed .icon.active {
     background-color: #555;
 }
+
+.splitc {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+
+    overflow: hidden;
+}
+
+.splitc .container1 {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    bottom: 50%;
+
+    border-bottom: 1px #eee solid;
+    overflow: hidden;
+}
+
+.splitc .container2 {
+    position: absolute;
+
+    top: 50%;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+
+    overflow: hidden;
+}

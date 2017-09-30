@@ -244,6 +244,9 @@ shapeRendering v _ = P.unsafeMkProps "shapeRendering" v
 width :: forall eff st. String -> Props eff st
 width v _ = P.width v
 
+value :: forall eff st. String -> Props eff st
+value v _ = P.value v
+
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
 

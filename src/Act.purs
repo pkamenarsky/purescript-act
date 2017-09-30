@@ -604,12 +604,12 @@ listCR = mkRef listCT listComponent
     listComponent as cmp = div [ class_ "list" ] $ flip map as \a -> div [ class_ "cell" ] [ cmp a ]
 
 tabbedCR :: Ref
-tabbedCR = mkRef listCT listComponent 
+tabbedCR = mkRef listCT tabbedComponent 
   where
     listCT = fun [ pure $ lensT boolT, fun [] component, fun [] component ] component
 
-    listComponent :: forall a eff st. ALens' st Boolean -> Component eff st -> Component eff st -> Component eff st
-    listComponent active cmp1 cmp2 = state \st -> div [ class_ "tabbed" ]
+    tabbedComponent :: forall a eff st. ALens' st Boolean -> Component eff st -> Component eff st -> Component eff st
+    tabbedComponent active cmp1 cmp2 = state \st -> div [ class_ "tabbed" ]
       [ div [ class_ "container" ]
         [ if active' st then cmp1 else cmp2
         ]
@@ -619,6 +619,39 @@ tabbedCR = mkRef listCT listComponent
       where
         active' st = st ^. cloneLens active
         activate v = modify' (cloneLens active) (const v)
+
+splitCR :: Ref
+splitCR = mkRef listCT splitComponent 
+  where
+    listCT = fun [ fun [] component, fun [] component ] component
+
+    splitComponent :: forall a eff st. Component eff st -> Component eff st -> Component eff st
+    splitComponent cmp1 cmp2 = state \st -> div [ class_ "splitc" ]
+      [ div [ class_ "container1" ] [ cmp1 ]
+      , div [ class_ "container2" ] [ cmp2 ]
+      ]
+
+inputCR :: Ref
+inputCR = mkRef tweetCT inputComponent
+  where
+    tweetCT = fun [ pure $ lensT stringT ] component
+
+    inputComponent :: forall eff st. ALens' st String -> Component eff st
+    inputComponent str = state \st -> div [ class_ "inputc" ]
+      [ input [ onChange \e -> setvalue (unsafeCoerce e).target.value, class_ "input", value (st ^. cloneLens str) ] []
+      ]
+      where
+        setvalue v = modify' (cloneLens str) (const v)
+
+textCR :: Ref
+textCR = mkRef tweetCT textComponent
+  where
+    tweetCT = fun [ pure $ lensT stringT ] component
+
+    textComponent :: forall eff st. ALens' st String -> Component eff st
+    textComponent str = state \st -> div [ class_ "textc" ]
+      [ div [ class_ "text"] [ text (st ^. cloneLens str) ]
+      ]
 
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
@@ -639,6 +672,9 @@ lensT t = RApp (RConst (Const "Lens")) t
 
 boolT :: RType
 boolT = RConst (Const "Bool")
+
+stringT :: RType
+stringT = RConst (Const "String")
 
 tweetT :: RType
 tweetT = RConst (Const "Tweet")
@@ -662,7 +698,7 @@ tabbedStateR = mkRef (pure $ lensT boolT) lns
     lns = lens (\st -> st.tabbedSt) (\st v -> st { tabbedSt = v })
 
 refArray :: Array Ref
-refArray = [ tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR ]
+refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
