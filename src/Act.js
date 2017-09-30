@@ -4,10 +4,18 @@ var THREE = require('three');
 
 exports.three = React.createClass({
   updateStateWithProps: function(props) {
-    var geometry = new THREE.BoxGeometry( 200,200,200);
+    var geometry = null;
+    var geometrywf = null;
 
-    var geometry = new THREE.DodecahedronGeometry(200, 1);
-    var geometrywf = new THREE.DodecahedronGeometry(205, 1);
+    // console.log(props);
+    if (!props.geometry || props.geometry === "dodecahedron") {
+      geometry = new THREE.DodecahedronGeometry(200, 1);
+      geometrywf = new THREE.DodecahedronGeometry(205, 1);
+    }
+    else if (props.geometry === "cube") {
+      geometry = new THREE.CubeGeometry(200);
+      geometrywf = new THREE.CubeGeometry(205);
+    }
 
     var material = new THREE.MeshBasicMaterial({
       color: 0x333333,
@@ -41,7 +49,7 @@ exports.three = React.createClass({
   },
 
   componentWillReceiveProps: function(props) {
-    return this.updateStateWithProps(props);
+    this.setState(this.updateStateWithProps(props));
   },
 
   componentDidMount: function() {
@@ -93,13 +101,15 @@ exports.three = React.createClass({
       'div',
       {
         className: "fill",
-        ref: "renderer"
+        ref: "renderer",
+        key: "renderer"
       },
       React.createElement(
         ReactTHREE.Renderer,
         { width: this.state.width,
           height: this.state.height,
           background: 0xffffff,
+          key: "renderer2"
         },
         React.createElement(
           ReactTHREE.Scene,

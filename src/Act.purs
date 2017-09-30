@@ -51,7 +51,7 @@ import Prelude hiding (div)
 
 --------------------------------------------------------------------------------
 
-foreign import three :: R.ReactClass Unit
+foreign import three :: R.ReactClass { geometry :: String }
 
 data DragState =
   DragConn
@@ -560,7 +560,7 @@ threeCR = mkRef listCT threeComponent
     listCT = fun [ ] component
 
     threeComponent :: forall eff st. Component eff st
-    threeComponent = wrapClass three unit
+    threeComponent = wrapClass three { geometry: "cube" }
 
 listCR :: Ref
 listCR = mkRef listCT listComponent 
