@@ -4,21 +4,25 @@ var THREE = require('three');
 
 exports.three = React.createClass({
   getInitialState: function() {
-    // base initial size on window size minus border size
-    var width = 300;
-    var height = 500;
-
-    return {width:width, height:height, cameraazimuth:0};
+    return { width: 1,
+             height: 1,
+             cameraazimuth:0
+           };
   },
 
   componentDidMount: function() {
     var componentinstance = this;
     var animationcallback = function(/*t*/) {
-      var newazimuth = componentinstance.state.cameraazimuth + 0.01;
+      let newazimuth = componentinstance.state.cameraazimuth + 0.01;
+      // debug();
+      let { clientHeight, clientWidth } = componentinstance.refs.renderer;
+      console.log(clientHeight);
 
-      var newstate = {
+      let newstate = {
         cameraazimuth: newazimuth,
-        spincameracallback: requestAnimationFrame(animationcallback)
+        spincameracallback: requestAnimationFrame(animationcallback),
+        width: clientWidth,
+        height: clientHeight
       };
 
       componentinstance.setState(newstate);
@@ -37,9 +41,14 @@ exports.three = React.createClass({
   render: function() {
     var MainCameraElement = React.createElement(
       ReactTHREE.PerspectiveCamera,
-      {name:'maincamera', fov:'75', aspect:this.state.width/this.state.height,
-       near:1, far:5000,
-       position:new THREE.Vector3(0,0,600), lookat:new THREE.Vector3(0,0,0)});
+      { name:'maincamera',
+        fov:'75',
+        aspect:this.state.width/this.state.height,
+        near:1,
+        far:5000,
+        position:new THREE.Vector3(0,0,600),
+        lookat:new THREE.Vector3(0,0,0)
+      });
 
     var geometry = new THREE.BoxGeometry( 200,200,200);
 
@@ -71,22 +80,35 @@ exports.three = React.createClass({
     cubeprops.material = material;
 
     return React.createElement(
-      ReactTHREE.Renderer,
-      { width:this.state.width,
-        height:this.state.height,
-        background: 0xffffff,
+      'div',
+      {
+        className: "overlay",
+        ref: "renderer"
       },
       React.createElement(
-        ReactTHREE.Scene,
-        {width:this.state.width, height:this.state.height, camera:'maincamera'},
-        MainCameraElement,
-        React.createElement(ReactTHREE.Mesh, cubeprops)
-      ),
-      React.createElement(
-        ReactTHREE.Scene,
-        {width:this.state.width, height:this.state.height, camera:'maincamera'},
-        MainCameraElement,
-        React.createElement(ReactTHREE.Mesh, cubepropswf)
+        ReactTHREE.Renderer,
+        { width:this.state.width,
+          height:this.state.height,
+          background: 0xffffff,
+        },
+        React.createElement(
+          ReactTHREE.Scene,
+          { width:this.state.width,
+            height:this.state.height,
+            camera:'maincamera'
+          },
+          MainCameraElement,
+          React.createElement(ReactTHREE.Mesh, cubeprops)
+        ),
+        React.createElement(
+          ReactTHREE.Scene,
+          { width:this.state.width,
+            height:this.state.height,
+            camera:'maincamera'
+          },
+          MainCameraElement,
+          React.createElement(ReactTHREE.Mesh, cubepropswf)
+        )
       )
     );
   }});
