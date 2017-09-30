@@ -52,7 +52,8 @@
     height: 36px;
     top: 0px;
     left: 0px;
-    font-size: 16px;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 36px;
     outline: none;
     border: none;
@@ -77,13 +78,14 @@
     /* border-bottom: 1px #eee solid; */
 }
 
-.search-split .container .cell .title {
+.search-split .container .title {
     position: absolute;
     top: 40px;
     left: 16px;
     font-family: Helvetica, sans-serif;
     font-size: 14px;
     font-weight: 700;
+    color: #555;
 }
 
 .search-split .container .cell .svg {
@@ -102,6 +104,21 @@
     right: 0px;
     height: 200px;
     overflow: auto;
+}
+
+.search-split .datamodel .title {
+    position: absolute;
+
+    top: 20px;
+    width: 100%;
+    bottom: 0px;
+    right: 32px;
+    text-align: right;
+
+    font-family: Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #555;
 }
 
 .wire-split {

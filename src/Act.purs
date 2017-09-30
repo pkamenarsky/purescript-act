@@ -724,7 +724,7 @@ searchComponent st snap
         , div [ class_ "input-container" ] [ input [ placeholder "Search components", onChange \e -> modify \st -> st { search = (unsafeCoerce e).target.value } ] [] ] ]
         ]
     , [ div [ class_ "container" ] (catMaybes exts)
-      , div [ class_ "datamodel" ] [ svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
+      , div [ class_ "datamodel" ] [ div [ class_ "title" ] [ text "Data model" ], svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
       ]
     ]
     where
@@ -746,7 +746,7 @@ searchComponent st snap
         | Just (label × _ × _) <- A.index refArray (i + 8) = Just $ snapValue $ ext snap (\str -> UILabelLeft $ label <> " :: " <> str) (pos i) (i × arg)
         | otherwise = Nothing
 
-      pos i = (200.0 + (2.0 * gap) × gap + (tn i * gap))
+      pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + (tn i * gap))
       exts  = map cell (indexedRange $ A.fromFoldable args)
       dmods = map dmodel (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
       ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i) (indexedRange $ A.fromFoldable args)
