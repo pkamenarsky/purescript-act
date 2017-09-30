@@ -734,7 +734,9 @@ searchComponent st snap
       filterdmodel _ = true
 
       dmodel (_ × arg@(_ × RFun _ _)) = Nothing
-      dmodel (i × arg) = Just $ snapValue $ ext snap UILabelLeft (pos i) (i × arg)
+      dmodel (i × arg)
+        | Just (label × _ × _) <- A.index refArray (i + 8) = Just $ snapValue $ ext snap (\str -> UILabelLeft $ label <> " :: " <> str) (pos i) (i × arg)
+        | otherwise = Nothing
 
       pos i = (200.0 + (2.0 * gap) × gap + (tn i * gap))
       exts  = map cell (indexedRange $ A.fromFoldable args)
