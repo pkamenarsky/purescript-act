@@ -639,7 +639,7 @@ searchComponent st snap
       cell (i × arg@(_ × RFun _ _)) = Just $ div [ class_ "cell" ]
         [ div [ class_ "title" ] [ text "TweetComponent" ]
         , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-            [ snapValue $ ext snap UILabelTopLeft (230.0 × 32.0) (i × arg)
+            [ snapValue $ ext snap UILabelTopLeft (230.5 × 32.5) (i × arg)
             ]
         ]
       cell _ = Nothing
