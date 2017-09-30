@@ -714,19 +714,20 @@ refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetC
 
 searchComponent :: forall eff. AppState -> SnapF -> Component eff AppState
 searchComponent st snap
-  | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg (L.Cons arg1 _)) _) L.Nil) <- extract st.rtype = div [] $ concat
+  | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] (catMaybes exts)
       , div [ class_ "datamodel" ] [ svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
       ]
     ]
     where
-      cell (i × arg@(_ × RFun _ _)) = Just $ div [ class_ "cell" ]
-        [ div [ class_ "title" ] [ text "TweetComponent" ]
-        , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-            [ snapValue $ ext snap UILabelTopLeft (230.5 × 32.5) (i × arg)
-            ]
-        ]
+      cell (i × arg@(_ × RFun _ _))
+        | Just (label × _ × _) <- A.index refArray i = Just $ div [ class_ "cell" ]
+          [ div [ class_ "title" ] [ text label ]
+          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
+              [ snapValue $ ext snap UILabelTopLeft (230.5 × 32.5) (i × arg)
+              ]
+          ]
       cell _ = Nothing
 
       filterdmodel arg@(_ × RFun _ _) = false
