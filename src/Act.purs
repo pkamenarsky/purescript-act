@@ -147,7 +147,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
 
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
 
-           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (450.5 × 150.5 × 260.0 × 360.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (450.5 × 200.5 × 260.0 × 260.0) (_subst × Just st.subst × chType)
      | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
