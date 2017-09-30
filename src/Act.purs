@@ -53,6 +53,8 @@ import Prelude hiding (div)
 
 foreign import three :: R.ReactClass { geometry :: String }
 
+foreign import pigeonMap :: R.ReactClass Unit
+
 data DragState =
   DragConn
     { start :: Vec
@@ -554,6 +556,14 @@ componentFromRefs e args
 
 --------------------------------------------------------------------------------
 
+mapsCR :: Ref
+mapsCR = mkRef listCT mapComponent 
+  where
+    listCT = fun [ ] component
+
+    mapComponent :: forall eff st. Component eff st
+    mapComponent = wrapClass pigeonMap unit
+
 threeCR :: Ref
 threeCR = mkRef listCT threeComponent 
   where
@@ -600,7 +610,7 @@ dodecahedronR :: Ref
 dodecahedronR = mkRef (pure objectT) "dodecahedron"
 
 refArray :: Array Ref
-refArray = [ listCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
+refArray = [ listCR, mapsCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))

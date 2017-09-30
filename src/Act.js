@@ -1,6 +1,9 @@
 var React = require('react');
 var ReactTHREE = require('react-three');
 var THREE = require('three');
+var Map = require('pigeon-maps');
+// var Marker = require('pigeon-marker');
+// var Overlay = require('pigeon-overlay');
 
 exports.three = React.createClass({
   updateStateWithProps: function(props) {
@@ -130,3 +133,23 @@ exports.three = React.createClass({
       )
     );
   }});
+
+exports.pigeonMap = React.createClass({
+  render: function() {
+    console.log(Map);
+    return React.createElement(
+      Map.default,
+      { center: [50.879, 4.6997], zoom: 12, width: 300, height: 500 }
+      // React.createElement(Marker, { anchor: [50.874, 4.6947], payload: 1, onClick: function onClick(_ref) {
+      //   var event = _ref.event,
+      //       anchor = _ref.anchor,
+      //       payload = _ref.payload;
+      // } }),
+      // React.createElement(
+      //   Overlay,
+      //   { anchor: [50.879, 4.6997], offset: [120, 79] },
+      //   React.createElement('img', { src: 'pigeon.jpg', width: 240, height: 158, alt: '' })
+      // )
+    );
+  }
+});
