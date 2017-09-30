@@ -144,9 +144,13 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
          -- , snapValue exts
          ])
          where
-           pos i = (200.0 + (2.0 * gap) × (300.0 + gap + (tn i * gap)))
-           exts  = traverse (ext (snap cmp) UILabelLeft (300.0 × (50.0 + gap))) (indexedRange $ A.fromFoldable args)
-           ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+           pos i = (200.0 + (2.0 * gap) × gap + (tn i * gap))
+
+           filterdmodel arg@(_ × RFun _ _) = false
+           filterdmodel _ = true
+
+           ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
+
            cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (500.5 × 150.5 × 300.0 × 300.0) (_subst × Just st.subst × chType)
      | otherwise = const Nothing × g [] []
 
