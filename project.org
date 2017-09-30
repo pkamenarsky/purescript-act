@@ -12,3 +12,6 @@
 * split UI
 ** need Maybe Substitution? would Placeholder work?
 ** compute unification from substitution, else unification stays forever
+* kontinuum-backend
+** cheap snapshots when storing copies of data
+** map<a, map<b, [c]>> should work reliably

@@ -8,10 +8,13 @@
   },
   "dependencies": {
     "react": "^15.4.2",
-    "react-dom": "^15.4.2"
+    "react-dom": "^15.4.2",
+    "react-three": "^0.9.7",
+    "three": "^0.83.0"
   },
   "devDependencies": {
     "css-loader": "^0.28.7",
+    "node-sass": "^4.5.3",
     "purs-loader": "^3.0.0",
     "sass-loader": "^6.0.6",
     "style-loader": "^0.18.2",

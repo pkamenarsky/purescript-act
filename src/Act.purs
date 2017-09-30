@@ -51,6 +51,8 @@ import Prelude hiding (div)
 
 --------------------------------------------------------------------------------
 
+foreign import three :: Unit -> R.ReactElement
+
 data DragState =
   DragConn
     { start :: Vec
@@ -119,7 +121,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
    ]
  , div [ class_ "component-split" ]
      [ div [ class_ "component-container" ]
-       [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
+       [ wrap (three unit) [] [] ] -- componentFromRefs (substituteC st.rtype st.subst) refArray ]
      ]
  ]
  <> case st.dragState of
