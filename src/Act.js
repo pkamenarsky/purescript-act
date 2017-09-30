@@ -3,7 +3,7 @@ var ReactTHREE = require('react-three');
 var THREE = require('three');
 
 exports.three = React.createClass({
-  getInitialState: function() {
+  updateStateWithProps: function(props) {
     var geometry = new THREE.BoxGeometry( 200,200,200);
 
     var geometry = new THREE.DodecahedronGeometry(200, 1);
@@ -36,35 +36,48 @@ exports.three = React.createClass({
            };
   },
 
+  getInitialState: function() {
+    return this.updateStateWithProps(this.props);
+  },
+
+  componentWillReceiveProps: function(props) {
+    return this.updateStateWithProps(props);
+  },
+
   componentDidMount: function() {
     var componentinstance = this;
+    var start = null;
+    let { clientHeight, clientWidth } = componentinstance.refs.renderer;
+
     var animationcallback = function(t) {
-      let newazimuth = /*componentinstance.state.cameraazimuth*/ t * 0.0000001;
-      // debug();
-      let { clientHeight, clientWidth } = componentinstance.refs.renderer;
-      console.log(clientHeight);
+      if (!start) {
+        start = t;
+      }
+      let newazimuth = /*componentinstance.state.cameraazimuth*/ (t - start) * 0.0003;
 
       let newstate = {
         cameraazimuth: newazimuth,
-        spincameracallback: requestAnimationFrame(animationcallback),
-        width: clientWidth,
-        height: clientHeight
+        spincameracallback: requestAnimationFrame(animationcallback)
       };
 
       componentinstance.setState(newstate);
     };
 
-    componentinstance.setState({spincameracallback:requestAnimationFrame(animationcallback)});
+    componentinstance.setState({
+      spincameracallback: requestAnimationFrame(animationcallback),
+      width: clientWidth,
+      height: clientHeight
+    });
   },
 
   componentWillUnmount: function() {
     if (this.state.spincameracallback !== null) {
       cancelAnimationFrame(this.state.spincameracallback);
     }
-    window.removeEventListener('resize',this.state.resizecallback);
   },
 
   render: function() {
+    var a = this.state.cameraazimuth;
     var MainCameraElement = React.createElement(
       ReactTHREE.PerspectiveCamera,
       { name:'maincamera',
@@ -72,12 +85,9 @@ exports.three = React.createClass({
         aspect:this.state.width/this.state.height,
         near:1,
         far:5000,
-        position:new THREE.Vector3(0,0,600),
-        lookat:new THREE.Vector3(0,0,0)
+        position: new THREE.Vector3(Math.cos(a) * 600, 0, Math.sin(a) * 600),
+        lookat: new THREE.Vector3(0,0,0)
       });
-
-    this.state.geometry.rotateY(this.state.cameraazimuth);
-    this.state.geometrywf.rotateY(this.state.cameraazimuth);
 
     return React.createElement(
       'div',
