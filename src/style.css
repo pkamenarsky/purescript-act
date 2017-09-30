@@ -16,7 +16,7 @@
     width: 300px;
 
     overflow: auto;
-    border-right: 1px #eee solid;
+    /* border-right: 1px #eee solid; */
 }
 
 .search-split input {
@@ -29,7 +29,7 @@
     line-height: 36px;
     outline: none;
     border: none;
-    border-top: 1px #eee solid;
+    /* border-top: 1px #eee solid; */
     border-bottom: 1px #eee solid;
 }
 
@@ -48,7 +48,7 @@
     position: relative;
     width: 100%;
     height: 96px;
-    border-bottom: 1px #eee solid;
+    /* border-bottom: 1px #eee solid; */
 }
 
 .search-split .container .cell .title {

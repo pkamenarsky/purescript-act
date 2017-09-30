@@ -128,16 +128,12 @@ ui = state \st -> let snap × cmp' = cmp st in div [] $
      ]
  ]
  <> case st.dragState of
-      Just (DragConn ds) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ] [ line ds.start ds.end ] ]
+      Just (DragConn ds) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ] [ bezier' $ bezpath ds.start ds.end ] ]
       Just (DragHOC { hoc, label, pos: (px × py) }) -> [ svg [ shapeRendering "geometricPrecision", class_ "overlay" ]
         [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) ((px + 0.5) × (py + 0.5) × dropSize × dropSize) (_const L.Nil) hoc
         ] ]
       _ -> []
  where
-   -- offset :: SnapF -> SnapF
-   -- offset snap (Left (bx × by × bw × bh)) = snap $ Left (bx - 300.0 × by × bw × bh)
-   -- offset snap (Right (vx × vy))          = snap $ Right (vx - 300.0 × vy)
-
    cmp st
      | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = (snap cmp) × (g [] $ concat
          [ [ snapValue cmp ]
@@ -178,6 +174,9 @@ line (sx × sy) (ex × ey) = path [ strokeWidth (px 3.0), stroke "#d90e59", d ("
 
 bezier :: forall eff st. Vec -> Path -> Component eff st
 bezier start es = path [ strokeWidth (px 3.0), fill "transparent", stroke "#d90e59", d (pathToString start es)] []
+
+bezier' :: forall eff st. String -> Component eff st
+bezier' str = path [ strokeWidth (px 3.0), fill "transparent", stroke "#d90e59", d str] []
 
 label :: forall eff st. Vec -> String -> String -> Component eff st
 label (vx × vy) align str = svgtext [ textAnchor align, fontFamily "Helvetica Neue", fontWeight "700", fontSize "14px", fill "#d90e59", x (px vx), y (px vy) ] [ text str ]
@@ -446,6 +445,14 @@ child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex
   | otherwise = pure $ g [] []
 child _ _ _ _ _ _ = pure $ g [] []
 
+bezpath :: Vec -> Vec -> String
+bezpath (sx × sy) (ex × ey) =
+      "M " <> show sx <> " " <> show sy <> " q 40 0 " <> show mx <> " " <> show my
+  <> " M " <> show ex <> " " <> show ey <> " q -40 0 " <> show (-mx) <> " " <> show (-my)
+  where
+    mx = (ex - sx) / 2.0
+    my = (ey - sy) / 2.0
+
 typeComponent :: forall eff.
                  AppState
               -> ChildStyle
@@ -485,7 +492,7 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
           snappableCircle 10.0 (pos i) (insertArg t ai) $ g [] $ concat
             [ [ uicircle (pos i) (UILabelTopLeft $ show t) ]
             , case connected ctx ai of
-                Just pos' -> [ line pos' (pos i) ]
+                Just (px' × py') -> let (px'' × py'') = pos i in [ bezier' $ bezpath (px' + 5.0 × py') (px'' - 5.0 × py'') ]
                 Nothing   -> []
             , [ incpath (pos i) ]
             ]
