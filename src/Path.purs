@@ -7,31 +7,26 @@ import Data.Tuple
 import Prelude
 
 data PathElement =
-    TL
-  | TR
-  | BR
-  | BL
+    TL Number Number
+  | TR Number Number
+  | BR Number Number
+  | BL Number Number
   | H Number
   | V Number
 
-infixr 6 BL as └
-infixr 6 BR as ┘
-infixr 6 TR as ┐
-infixr 6 TL as ┌ 
-
 type Path = Array PathElement
-
-r :: String
-r = "15"
-
-nr :: String
-nr = "-" <> r
 
 z :: String
 z = "0"
 
+p :: Number -> String
+p = show
+
+n :: Number -> String
+n = (\x -> "-" <> show x)
+
 pathToString :: Tuple Number Number -> Path -> String
-pathToString (Tuple x y) p = "M " <> show x <> " " <> show y <> go true (fromFoldable p)
+pathToString (Tuple x y) path = "M " <> show x <> " " <> show y <> go true (fromFoldable path)
  where
    go st (Cons e es) = " " <> v <> go st' es
      where
@@ -40,13 +35,13 @@ pathToString (Tuple x y) p = "M " <> show x <> " " <> show y <> go true (fromFol
 
    -- true = horizontal, false = vertical
    pe :: Boolean -> PathElement -> Tuple String Boolean
-   pe false TL    = Tuple ("q " <> joinWith " " [ z, nr, r, nr ]) true
-   pe true  TL    = Tuple ("q " <> joinWith " " [ nr, z, nr, r ]) false
-   pe false TR    = Tuple ("q " <> joinWith " " [ z, nr, nr, nr ]) true
-   pe true  TR    = Tuple ("q " <> joinWith " " [ r, z, r, r ]) false
-   pe false BR    = Tuple ("q " <> joinWith " " [ z, r, nr, r ]) true
-   pe true  BR    = Tuple ("q " <> joinWith " " [ r, z, r, nr ]) false
-   pe false BL    = Tuple ("q " <> joinWith " " [ z, r, r, r ]) true
-   pe true  BL    = Tuple ("q " <> joinWith " " [ nr, z, nr, nr ]) false
-   pe _ (H h)     = Tuple ("h " <> show h) true
-   pe _ (V v)     = Tuple ("v " <> show v) false
+   pe false (TL hr vr) = Tuple ("q " <> joinWith " " [ z, n vr, p hr, n vr ]) true
+   pe true  (TL hr vr) = Tuple ("q " <> joinWith " " [ n hr, z, n hr, p vr]) false
+   pe false (TR hr vr) = Tuple ("q " <> joinWith " " [ z, n vr, n hr, n vr ]) true
+   pe true  (TR hr vr) = Tuple ("q " <> joinWith " " [ p hr, z, p hr, p vr ]) false
+   pe false (BR hr vr) = Tuple ("q " <> joinWith " " [ z, p vr, n hr, p vr ]) true
+   pe true  (BR hr vr) = Tuple ("q " <> joinWith " " [ p hr, z, p hr, n vr ]) false
+   pe false (BL hr vr) = Tuple ("q " <> joinWith " " [ z, p vr, p hr, p vr ]) true
+   pe true  (BL hr vr) = Tuple ("q " <> joinWith " " [ n hr, z, n hr, n vr ]) false
+   pe _ (H h)          = Tuple ("h " <> show h) true
+   pe _ (V v)          = Tuple ("v " <> show v) false

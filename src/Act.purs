@@ -218,19 +218,19 @@ firstJust as f = go (L.fromFoldable as)
       | otherwise      = go as
     go L.Nil = Nothing
 
-uirect :: forall eff st. Rect -> Component eff st
-uirect (bx × by × bw × bh)
-  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
+uirect :: forall eff st. Number -> Rect -> Component eff st
+uirect r (bx × by × bw × bh)
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px r), ry (px r), stroke "#d90e59", strokeWidth "3", fill "transparent" ] []
   | otherwise            = g [] []
 
-uirectDashed' :: forall eff st. Rect -> String -> Component eff st
-uirectDashed' (bx × by × bw × bh) color
-  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke color, strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+uirectDashed' :: forall eff st. Number -> Rect -> String -> Component eff st
+uirectDashed' r (bx × by × bw × bh) color
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px r), ry (px r), stroke color, strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
   | otherwise            = g [] []
 
-uirectDashed :: forall eff st. Rect -> Component eff st
-uirectDashed (bx × by × bw × bh)
-  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px 7.0), ry (px 7.0), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
+uirectDashed :: forall eff st. Number -> Rect -> Component eff st
+uirectDashed r (bx × by × bw × bh)
+  | bw > 0.0 && bh > 0.0 = rect [ x (px bx), y (px by), width (px bw), height (px bh), rx (px r), ry (px r), stroke "#d90e59", strokeWidth "3", strokeDashArray "5, 5", fill "transparent" ] []
   | otherwise            = g [] []
 
 data UILabel = UILabelLeft String | UILabelRight String | UILabelTopLeft String | UILabelTopRight String | UILabelNone
@@ -386,7 +386,13 @@ ext snap labelf (ox × oy) (i × l × t) = pure $ g
 data ChildStyle = Full | Compact
 
 dropSize :: Number
-dropSize = 36.0
+dropSize = 32.0
+
+fullRadius :: Number
+fullRadius = 7.0
+
+smallRadius :: Number
+smallRadius = 5.0
 
 child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens' AppState Substitution × Maybe Substitution × RArgIndex × Label × RType -> SnapComponent eff
 child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex ai × l × t@(RFun args _))
@@ -395,15 +401,15 @@ child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex
     let pos i = (bx + (2.0 * gap) × (by + gap * 2.0) + (tn i * gap))
         midy  = by + bh / 2.0
         r     = 15.0
-        incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL, V (midy - sy - r * 2.0), BR, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
+        incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL 15.0 15.0, V (midy - sy - r * 2.0), BR 15.0 15.0, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
         ctx'  = case style of
           Full    -> M.empty
           Compact -> M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
         cmp   = snappableRect dropBounds insertChild =<< case s of
           Just (SApp fs ss) -> case labeltype fs tt of
             Just t' -> typeComponent st style (M.union ctx ctx') tt dropBounds (cloneLens substlens <<< _SApp' <<< _2) t'
-            Nothing -> pure $ uirectDashed' dropBounds "#ccc"
-          _ -> pure $ uirectDashed' dropBounds "#ccc"
+            Nothing -> pure $ uirectDashed' smallRadius dropBounds "#ccc"
+          _ -> pure $ uirectDashed' smallRadius dropBounds "#ccc"
 
     exts <- traverse (ext (snap cmp) UILabelTopRight (bx × by)) (indexedRange $ A.fromFoldable args)
     cmp' <- cmp
@@ -462,11 +468,14 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
           inc'      <- inc (A.fromFoldable incTypes)
 
           pure $ g [] $ concat
-            [ [ uirect bounds ]
+            [ [ uirect radius bounds ]
             , [ inc' ]
             , fromMaybe [] children'
             ]
       where
+        radius      = case style of
+          Full    -> fullRadius
+          Compact -> smallRadius
         childMargin = ((8.0 * gap) × (1.0 * gap) × gap × gap)
 
         inc :: Array (RArgIndex × Label × RType) -> SnapComponent eff
@@ -480,9 +489,9 @@ typeComponent st style ctx tt r ss t = typeComponent' tt r ss t
             ]
           where
             midy = by + bh / 2.0
-            r    = 15.0
-            incpath start@(sx × sy) = bezier (sx + 5.0 × sy) [H 20.0, TR, V (midy - sy - r * 2.0), BL, H (bx - sx - r * 2.0 - 20.0 - 5.0)]
-            pos i = (bx - (gap * 2.0) × by - 15.0 + (tn i * gap))
+            incpath start@(sx × sy) = bezier (sx + 5.0 × sy) [H 20.0, TR r r, V (midy - sy - r * 2.0), BL r r, H (bx - sx - r * 2.0 - 20.0 - 5.0)]
+              where r = (min (midy - sy) 30.0) / 2.0
+            pos i = (bx - (gap * 2.0) × midy)
             insertArg t (RArgIndex ai) l t' st = case unify t t' of
               UEq -> flip (over substs) st \sss -> if L.length sss == 0
                 then sss
@@ -599,7 +608,7 @@ tweetT :: RType
 tweetT = RConst (Const "Tweet")
 
 objectT :: RType
-objectT = RConst (Const "3D Object")
+objectT = RConst (Const "3D")
 
 tweetsR :: Ref
 tweetsR = mkRef (pure $ array tweetT) tweets
@@ -632,7 +641,7 @@ searchComponent st snap
       cell (i × arg@(_ × RFun _ _)) = Just $ div [ class_ "cell" ]
         [ div [ class_ "title" ] [ text "TweetComponent" ]
         , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
-            [ snapValue $ ext snap UILabelTopLeft (230.0 × 50.0) (i × arg)
+            [ snapValue $ ext snap UILabelTopLeft (230.0 × 32.0) (i × arg)
             ]
         ]
       cell _ = Nothing
