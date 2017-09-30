@@ -117,7 +117,7 @@ showUnfcs :: M.Map Var Const -> String
 showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M.toUnfoldable m :: Array (Var × Const))
 
 ui :: forall eff. Component eff AppState
-ui = state \st -> let snap × cmp' = cmp st in div [] $
+ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable" ] $
  [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
@@ -721,7 +721,7 @@ searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ div [ class_ "search-container" ]
         [ div [ class_ "search-icon" ] [ i_ [ class_ "icon ion-search" ] []]
-        , div [ class_ "input-container" ] [ input [ onChange \e -> modify \st -> st { search = (unsafeCoerce e).target.value } ] [] ] ]
+        , div [ class_ "input-container" ] [ input [ placeholder "Search components", onChange \e -> modify \st -> st { search = (unsafeCoerce e).target.value } ] [] ] ]
         ]
     , [ div [ class_ "container" ] (catMaybes exts)
       , div [ class_ "datamodel" ] [ svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]

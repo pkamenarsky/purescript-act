@@ -247,6 +247,12 @@ width v _ = P.width v
 value :: forall eff st. String -> Props eff st
 value v _ = P.value v
 
+defaultValue :: forall eff st. String -> Props eff st
+defaultValue v _ = P.defaultValue v
+
+placeholder :: forall eff st. String -> Props eff st
+placeholder v _ = P.placeholder v
+
 height :: forall eff st. String -> Props eff st
 height v _ = P.height v
 
