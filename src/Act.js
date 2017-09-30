@@ -34,9 +34,7 @@ exports.three = React.createClass({
     cubeprops.geometry = geometry;
     cubeprops.material = material;
 
-    return { width: 1,
-             height: 1,
-             cameraazimuth: 0,
+    return { cameraazimuth: 0,
              geometry,
              geometrywf,
              cubeprops,
