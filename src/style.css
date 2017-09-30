@@ -218,3 +218,66 @@
 .tweet .icon3 {
     left: 104px;
 }
+
+.tabbed {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+
+    overflow: hidden;
+}
+
+.tabbed .container {
+    position: absolute;
+
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    bottom: 64px;
+
+    overflow: auto;
+}
+
+.tabbed .button1 {
+    position: absolute;
+
+    bottom: 0px;
+    left: 0px;
+    width: 50%;
+    height: 64px;
+
+    border-top: 1px #eee solid;
+}
+
+.tabbed .button2 {
+    position: absolute;
+
+    bottom: 0px;
+    left: 50%;
+    width: 50%;
+    height: 64px;
+
+    border-top: 1px #eee solid;
+}
+
+.tabbed .icon {
+    position: absolute;
+
+    width: 32px;
+    height: 32px;
+    margin-left: -16px;
+    margin-top: -16px;
+
+    left: 50%;
+    top: 50%;
+
+    border: 2px #ddd solid;
+    border-radius: 32px;
+}
+
+.tabbed .icon.active {
+    border: 2px #555 solid;
+}

@@ -609,10 +609,16 @@ tabbedCR = mkRef listCT listComponent
     listCT = fun [ pure $ lensT boolT, fun [] component, fun [] component ] component
 
     listComponent :: forall a eff st. ALens' st Boolean -> Component eff st -> Component eff st -> Component eff st
-    listComponent active cmp1 cmp2 = state \st -> div [ class_ "fill" ]
-      if st ^. cloneLens active
-        then [ cmp1 ]
-        else [ cmp2 ]
+    listComponent active cmp1 cmp2 = state \st -> div [ class_ "tabbed" ]
+      [ div [ class_ "container" ]
+        [ if active' st then cmp1 else cmp2
+        ]
+      , div [ class_ "button1", onClick \_ -> activate false  ] [ div [ class_ $ "icon " <> if active' st then "active" else "" ] [] ]
+      , div [ class_ "button2", onClick \_ -> activate true ] [ div [ class_ $ "icon " <> if not (active' st) then "active" else ""  ] [] ]
+      ]
+      where
+        active' st = st ^. cloneLens active
+        activate v = modify' (cloneLens active) (const v)
 
 tweetCR :: Ref
 tweetCR = mkRef tweetCT tweetComponent
