@@ -633,6 +633,7 @@ searchComponent st snap
   | Just (incTypes × L.Cons chType@(_ × _ × RFun args@(L.Cons arg (L.Cons arg1 _)) _) L.Nil) <- extract st.rtype = div [] $ concat
     [ [ input [ onChange \e -> modify \st -> st { debug = (unsafeCoerce e).target.value } ] [] ]
     , [ div [ class_ "container" ] (catMaybes exts)
+      , div [ class_ "datamodel" ] [ svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
       ]
     ]
     where
@@ -644,7 +645,14 @@ searchComponent st snap
         ]
       cell _ = Nothing
 
-      pos i = (20.0 + (3.0 * gap) × (50.0 + gap) + (tn i * gap))
+      filterdmodel arg@(_ × RFun _ _) = false
+      filterdmodel _ = true
+
+      dmodel (_ × arg@(_ × RFun _ _)) = Nothing
+      dmodel (i × arg) = Just $ snapValue $ ext snap UILabelLeft (pos i) (i × arg)
+
+      pos i = (200.0 + (2.0 * gap) × gap + (tn i * gap))
       exts  = map cell (indexedRange $ A.fromFoldable args)
-      ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
+      dmods = map dmodel (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
+      ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i) (indexedRange $ A.fromFoldable args)
   | otherwise = div [] []
