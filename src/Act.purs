@@ -351,7 +351,7 @@ type Context = M.Map Label Vec
 type Level = Int
 
 ext :: forall eff. SnapF -> (String -> UILabel) -> Vec -> (Int × Label × RType) -> SnapComponent eff
-ext snap labelf (ox × oy) (i × l × t@(RFun _ (RConst (Const "Component")))) = pure $ state \st -> g
+ext snap labelf (ox × oy) (_ × l × t@(RFun _ (RConst (Const "Component")))) = pure $ state \st -> g
   [ onMouseDrag \e -> case e of
       DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
       DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
@@ -379,9 +379,7 @@ ext snap labelf (ox × oy) (i × l × t) = pure $ g
           Just (Right f) -> modify (f l t)
           _              -> pure unit
   ]
-  [ uicircle (pos i) (labelf $ show t) ]
-  where
-    pos i = (ox + (2.0 * gap) × (oy + gap * 2.0) + (tn i * gap))
+  [ uicircle (ox × oy) (labelf $ show t) ]
 
 data ChildStyle = Full | Compact
 
@@ -398,10 +396,10 @@ child :: forall eff. AppState -> ChildStyle -> Context -> RType -> Rect -> ALens
 child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex ai × l × t@(RFun args _))
   | isHOC t = do
      
-    let pos i = (bx + (2.0 * gap) × (by + gap * 2.0) + (tn i * gap))
+    let pos i = (bx + (2.0 * gap) × midy - (tn i * gap))
         midy  = by + bh / 2.0
-        r     = 15.0
-        incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL 15.0 15.0, V (midy - sy - r * 2.0), BR 15.0 15.0, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
+        incpath start@(sx × sy) = bezier (sx - 5.0 × sy) [H (-20.0), TL r r, V (midy - sy - r * 2.0), BR r r, H (-(sx - bx - r * 2.0 - 20.0 - 5.0))]
+          where r = (min (midy - sy) 30.0) / 2.0
         ctx'  = case style of
           Full    -> M.empty
           Compact -> M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable args)
@@ -411,7 +409,7 @@ child st style ctx tt bounds@(bx × by × bw × bh) (substlens × s × RArgIndex
             Nothing -> pure $ uirectDashed' smallRadius dropBounds "#ccc"
           _ -> pure $ uirectDashed' smallRadius dropBounds "#ccc"
 
-    exts <- traverse (ext (snap cmp) UILabelTopRight (bx × by)) (indexedRange $ A.fromFoldable args)
+    exts <- traverse (\arg@(i × _) -> ext (snap cmp) UILabelTopRight (pos i) arg) (indexedRange $ A.fromFoldable args)
     cmp' <- cmp
 
     pure $ g [] $ concat
