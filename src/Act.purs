@@ -613,8 +613,8 @@ tabbedCR = mkRef listCT listComponent
       [ div [ class_ "container" ]
         [ if active' st then cmp1 else cmp2
         ]
-      , div [ class_ "button1", onClick \_ -> activate false  ] [ div [ class_ $ "icon " <> if active' st then "active" else "" ] [] ]
-      , div [ class_ "button2", onClick \_ -> activate true ] [ div [ class_ $ "icon " <> if not (active' st) then "active" else ""  ] [] ]
+      , div [ class_ "button1", onClick \_ -> activate true  ] [ div [ class_ $ "icon " <> if active' st then "active" else "" ] [] ]
+      , div [ class_ "button2", onClick \_ -> activate false ] [ div [ class_ $ "icon " <> if not (active' st) then "active" else ""  ] [] ]
       ]
       where
         active' st = st ^. cloneLens active

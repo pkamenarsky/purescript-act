@@ -10,7 +10,6 @@ exports.three = React.createClass({
     var geometry = null;
     var geometrywf = null;
 
-    console.log(props);
     if (!props.geometry || props.geometry === "dodecahedron") {
       geometry = new THREE.DodecahedronGeometry(200, 1);
       geometrywf = new THREE.DodecahedronGeometry(205, 1);
