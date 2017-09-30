@@ -76,6 +76,19 @@
     overflow: auto;
 }
 
+.fill {
+    position: absolute;
+
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    left: 0px;
+    bottom: 0px;
+    right: 400px;
+
+    overflow: hidden;
+}
+
 .overlay {
     position: absolute;
 

@@ -4,16 +4,43 @@ var THREE = require('three');
 
 exports.three = React.createClass({
   getInitialState: function() {
+    var geometry = new THREE.BoxGeometry( 200,200,200);
+
+    var geometry = new THREE.DodecahedronGeometry(200, 1);
+    var geometrywf = new THREE.DodecahedronGeometry(210, 1);
+
+    var material = new THREE.MeshBasicMaterial({
+      color: 0x333333,
+      wireframe: false,
+    });
+    var materialwf = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      wireframe: true,
+    });
+
+    var cubepropswf = {};
+    cubepropswf.geometry = geometrywf;
+    cubepropswf.scale = THREE.Vector3(1.2, 1.2, 1.2);
+    cubepropswf.material = materialwf;
+
+    var cubeprops = {};
+    cubeprops.geometry = geometry;
+    cubeprops.material = material;
+
     return { width: 1,
              height: 1,
-             cameraazimuth:0
+             cameraazimuth: 0,
+             geometry,
+             geometrywf,
+             cubeprops,
+             cubepropswf,
            };
   },
 
   componentDidMount: function() {
     var componentinstance = this;
-    var animationcallback = function(/*t*/) {
-      let newazimuth = componentinstance.state.cameraazimuth + 0.01;
+    var animationcallback = function(t) {
+      let newazimuth = /*componentinstance.state.cameraazimuth*/ t * 0.0000001;
       // debug();
       let { clientHeight, clientWidth } = componentinstance.refs.renderer;
       console.log(clientHeight);
@@ -50,64 +77,38 @@ exports.three = React.createClass({
         lookat:new THREE.Vector3(0,0,0)
       });
 
-    var geometry = new THREE.BoxGeometry( 200,200,200);
-
-    var geometry = new THREE.DodecahedronGeometry(200, 1);
-    var geometrywf = new THREE.DodecahedronGeometry(210, 1);
-
-    var material = new THREE.MeshBasicMaterial({
-      color: 0x333333,
-      wireframe: false,
-    });
-    var materialwf = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      wireframe: true,
-    });
-
-    // var material = new THREE.MeshDepthMaterial({
-    //   wireframe: true
-    // });
-    geometry.rotateY(this.state.cameraazimuth);
-    geometrywf.rotateY(this.state.cameraazimuth);
-
-    var cubepropswf = {};
-    cubepropswf.geometry = geometrywf;
-    cubepropswf.scale = THREE.Vector3(1.2, 1.2, 1.2);
-    cubepropswf.material = materialwf;
-
-    var cubeprops = {};
-    cubeprops.geometry = geometry;
-    cubeprops.material = material;
+    this.state.geometry.rotateY(this.state.cameraazimuth);
+    this.state.geometrywf.rotateY(this.state.cameraazimuth);
 
     return React.createElement(
       'div',
       {
-        className: "overlay",
+        className: "fill",
         ref: "renderer"
       },
       React.createElement(
         ReactTHREE.Renderer,
-        { width:this.state.width,
-          height:this.state.height,
+        { width: this.state.width,
+          height: this.state.height,
           background: 0xffffff,
         },
         React.createElement(
           ReactTHREE.Scene,
-          { width:this.state.width,
-            height:this.state.height,
+          { width: this.state.width,
+            height: this.state.height,
             camera:'maincamera'
           },
           MainCameraElement,
-          React.createElement(ReactTHREE.Mesh, cubeprops)
+          React.createElement(ReactTHREE.Mesh, this.state.cubeprops)
         ),
         React.createElement(
           ReactTHREE.Scene,
-          { width:this.state.width,
-            height:this.state.height,
+          { width: this.state.width,
+            height: this.state.height,
             camera:'maincamera'
           },
           MainCameraElement,
-          React.createElement(ReactTHREE.Mesh, cubepropswf)
+          React.createElement(ReactTHREE.Mesh, this.state.cubepropswf)
         )
       )
     );
