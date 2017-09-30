@@ -74,6 +74,7 @@ type AppState =
   , unfcs     :: M.Map Var Const
 
   , tabbedSt  :: Boolean
+  , strSt     :: String
   }
 
 _subst :: Lens' AppState Substitution
@@ -91,6 +92,7 @@ emptyAppState =
   , unfcs     : M.empty
 
   , tabbedSt  : true
+  , strSt     : ""
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
@@ -697,8 +699,14 @@ tabbedStateR = mkRef (pure $ lensT boolT) lns
     lns :: ALens' AppState Boolean
     lns = lens (\st -> st.tabbedSt) (\st v -> st { tabbedSt = v })
 
+strStateR :: Ref
+strStateR = mkRef (pure $ lensT stringT) lns
+  where
+    lns :: ALens' AppState String
+    lns = lens (\st -> st.strSt) (\st v -> st { strSt = v })
+
 refArray :: Array Ref
-refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR ]
+refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR, strStateR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
