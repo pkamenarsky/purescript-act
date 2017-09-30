@@ -148,7 +148,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable" ] $
          -- , snapValue exts
          ])
          where
-           pos i = (200.0 + (2.0 * gap) × gap + (tn i * gap))
+           pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + (tn i * gap))
 
            filterdmodel arg@(_ × RFun _ _) = false
            filterdmodel _ = true
