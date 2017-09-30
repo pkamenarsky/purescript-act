@@ -7,23 +7,23 @@ exports.three = React.createClass({
     var geometry = null;
     var geometrywf = null;
 
-    // console.log(props);
+    console.log(props);
     if (!props.geometry || props.geometry === "dodecahedron") {
       geometry = new THREE.DodecahedronGeometry(200, 1);
       geometrywf = new THREE.DodecahedronGeometry(205, 1);
     }
     else if (props.geometry === "cube") {
-      geometry = new THREE.CubeGeometry(200);
-      geometrywf = new THREE.CubeGeometry(205);
+      geometry = new THREE.BoxGeometry(200, 200, 200);
+      geometrywf = new THREE.BoxGeometry(205, 205, 205);
     }
 
     var material = new THREE.MeshBasicMaterial({
       color: 0x333333,
-      wireframe: false,
+      wireframe: false
     });
     var materialwf = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      wireframe: true,
+      wireframe: true
     });
 
     var cubepropswf = {};
@@ -35,10 +35,10 @@ exports.three = React.createClass({
     cubeprops.material = material;
 
     return { cameraazimuth: 0,
-             geometry,
-             geometrywf,
-             cubeprops,
-             cubepropswf,
+             geometry: geometry,
+             geometrywf: geometrywf,
+             cubeprops: cubeprops,
+             cubepropswf: cubepropswf
            };
   },
 
@@ -53,15 +53,15 @@ exports.three = React.createClass({
   componentDidMount: function() {
     var componentinstance = this;
     var start = null;
-    let { clientHeight, clientWidth } = componentinstance.refs.renderer;
+    var ref = componentinstance.refs.renderer;
 
     var animationcallback = function(t) {
       if (!start) {
         start = t;
       }
-      let newazimuth = /*componentinstance.state.cameraazimuth*/ (t - start) * 0.0003;
+      var newazimuth = /*componentinstance.state.cameraazimuth*/ (t - start) * 0.0003;
 
-      let newstate = {
+      var newstate = {
         cameraazimuth: newazimuth,
         spincameracallback: requestAnimationFrame(animationcallback)
       };
@@ -71,8 +71,8 @@ exports.three = React.createClass({
 
     componentinstance.setState({
       spincameracallback: requestAnimationFrame(animationcallback),
-      width: clientWidth,
-      height: clientHeight
+      width: ref.clientWidth,
+      height: ref.clientHeight
     });
   },
 

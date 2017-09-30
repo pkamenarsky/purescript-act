@@ -557,10 +557,10 @@ componentFromRefs e args
 threeCR :: Ref
 threeCR = mkRef listCT threeComponent 
   where
-    listCT = fun [ ] component
+    listCT = fun [ pure objectT ] component
 
-    threeComponent :: forall eff st. Component eff st
-    threeComponent = wrapClass three { geometry: "cube" }
+    threeComponent :: forall eff st. String -> Component eff st
+    threeComponent obj = wrapClass three { geometry: obj }
 
 listCR :: Ref
 listCR = mkRef listCT listComponent 
@@ -587,11 +587,20 @@ tweetCR = mkRef tweetCT tweetComponent
 tweetT :: RType
 tweetT = RConst (Const "Tweet")
 
+objectT :: RType
+objectT = RConst (Const "3D Object")
+
 tweetsR :: Ref
 tweetsR = mkRef (pure $ array tweetT) tweets
 
+cubeR :: Ref
+cubeR = mkRef (pure objectT) "cube"
+
+dodecahedronR :: Ref
+dodecahedronR = mkRef (pure objectT) "dodecahedron"
+
 refArray :: Array Ref
-refArray = [ listCR, threeCR, tweetCR, tweetsR ]
+refArray = [ listCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
