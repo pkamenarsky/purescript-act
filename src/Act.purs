@@ -94,7 +94,7 @@ emptyAppState =
   , search    : ""
 
   , tabbedSt  : true
-  , strSt     : ""
+  , strSt     : "Text"
   }
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
