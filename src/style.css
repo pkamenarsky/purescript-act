@@ -166,7 +166,7 @@
     top: 0px;
     left: 000px;
     bottom: 0px;
-    right: 400px;
+    right: 0px;
 
     overflow: auto;
 }
@@ -477,4 +477,13 @@
 }
 ::-ms-input-placeholder { /* Microsoft Edge */
    color:    #ccc;
+}
+
+#demo1 {
+    position: absolute;
+
+    width: 1100px;
+    left: 100px;
+    top: 0px;
+    height: 600px;
 }

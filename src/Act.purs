@@ -115,6 +115,17 @@ main = void (elm' >>= RD.render ui')
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
           pure $ unsafePartial fromJust elm
 
+demo :: forall eff. String -> Int -> Eff (dom :: D.DOM | eff) Unit
+demo eid demoid = void (elm' >>= RD.render ui')
+  where ui' = R.createFactory (R.createClass (mkSpec emptyAppState mainUI)) unit
+
+        elm' :: Eff (dom :: D.DOM | eff) D.Element
+        elm' = do
+          win <- window
+          doc <- document win
+          elm <- getElementById (ElementId eid) (documentToNonElementParentNode (htmlDocumentToDocument doc))
+          pure $ unsafePartial fromJust elm
+
 --------------------------------------------------------------------------------
 
 mainUI :: forall eff. Component eff AppState
@@ -126,7 +137,7 @@ showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M
 ui :: forall eff. Component eff AppState
 ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" ] $
  [ div [ class_ "wire-split" ]
-   [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
+   [ svg [ shapeRendering "geometricPrecision", class_ "fill" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp'
        ]
@@ -302,7 +313,7 @@ shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
 meToV :: R.MouseEvent -> Vec
-meToV { pageX, pageY } = pageX × pageY
+meToV { pageX, pageY } = (pageX - 100.0) × pageY
 
 --------------------------------------------------------------------------------
 
@@ -380,7 +391,7 @@ ext snap labelf (ox × oy) (_ × l × t@(RFun _ (RConst (Const "Component")))) =
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        case snap (Left (e.pageX × e.pageY × dropSize × dropSize)) of
+        case snap (Left (e.pageX - 100.0 × e.pageY × dropSize × dropSize)) of
           Just (Left f) -> modify (f l t)
           _             -> modify \st -> st { debug = "no drop target" }
   ]
@@ -397,7 +408,7 @@ ext snap labelf (ox × oy) (i × l × t) = pure $ g
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        case snap (Right (e.pageX × e.pageY)) of
+        case snap (Right (e.pageX - 100.0 × e.pageY)) of
           Just (Right f) -> modify (f l t)
           _              -> pure unit
   ]
