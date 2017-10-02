@@ -69,6 +69,8 @@ data DragState =
 type AppState =
   { debug     :: String
   , dragState :: Maybe DragState
+  , refArray  :: Array Ref
+  , refIndex  :: Int
   , rtype     :: RType
   , subst     :: Substitution
   , unfcs     :: M.Map Var Const
@@ -88,7 +90,9 @@ emptyAppState :: AppState
 emptyAppState =
   { debug     : "Debug: "
   , dragState : Nothing
-  , rtype     : rtypeFromRefs refArray -- type2
+  , refArray  : refArray'
+  , refIndex  : refIndex'
+  , rtype     : rtypeFromRefs refArray'
   , subst     : Placeholder
   , unfcs     : M.empty
   , search    : ""
@@ -96,6 +100,9 @@ emptyAppState =
   , tabbedSt  : true
   , strSt     : "Text"
   }
+  where
+    refArray' = refArray1
+    refIndex' = 1
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui')
@@ -128,11 +135,12 @@ ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" 
    -- , state \st -> code [] [ text st.debug ]
    ]
  , div [ class_ "search-split" ]
-   [ searchComponent st snap
+   [ -- searchComponent st snap
+     demoComponent st snap
    ]
  , div [ class_ "component-split" ]
      [ div [ class_ "component-container" ]
-       [ componentFromRefs (substituteC st.rtype st.subst) refArray ]
+       [ componentFromRefs (substituteC st.rtype st.subst) st.refArray ]
        -- [ wrapClass three unit ]
      ]
  ]
@@ -156,7 +164,10 @@ ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" 
 
            ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i)  (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
 
-           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) (450.5 × 200.5 × 260.0 × 260.0) (_subst × Just st.subst × chType)
+           cmp   = child st Full ctx' (specialize st.unfcs st.rtype) demoSize (_subst × Just st.subst × chType)
+
+           prototypeSize = 450.5 × 200.5 × 260.0 × 260.0
+           demoSize      = 450.5 × 105.5 × 220.0 × 395.0
      | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
@@ -707,6 +718,9 @@ strStateR = mkRef "Text" (pure $ lensT stringT) lns
 refArray :: Array Ref
 refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR, strStateR ]
 
+refArray1 :: Array Ref
+refArray1 = [ inputCR, strStateR ]
+
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
 --
@@ -730,7 +744,7 @@ searchComponent st snap
     ]
     where
       cell (i × arg@(_ × RFun _ _))
-        | Just (label × _ × _) <- A.index refArray i
+        | Just (label × _ × _) <- A.index st.refArray i
         , S.contains (S.Pattern $ S.toLower st.search) (S.toLower label) = Just $ div [ class_ "cell" ]
           [ div [ class_ "title" ] [ text label ]
           , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
@@ -744,7 +758,40 @@ searchComponent st snap
 
       dmodel (_ × arg@(_ × RFun _ _)) = Nothing
       dmodel (i × arg)
-        | Just (label × _ × _) <- A.index refArray (i + 8) = Just $ snapValue $ ext snap (\str -> UILabelLeft $ label <> " :: " <> str) (pos i) (i × arg)
+        | Just (label × _ × _) <- A.index st.refArray (i + 8) = Just $ snapValue $ ext snap (\str -> UILabelLeft $ label <> " :: " <> str) (pos i) (i × arg)
+        | otherwise = Nothing
+
+      pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + (tn i * gap))
+      exts  = map cell (indexedRange $ A.fromFoldable args)
+      dmods = map dmodel (indexedRange $ A.fromFoldable $ L.filter filterdmodel args)
+      ctx'  = M.fromFoldable $ map (\(i × l × _) -> l × pos i) (indexedRange $ A.fromFoldable args)
+  | otherwise = div [] []
+
+demoComponent :: forall eff. AppState -> SnapF -> Component eff AppState
+demoComponent st snap
+  | Just (incTypes × L.Cons chType@(_ × _ × RFun args _) L.Nil) <- extract st.rtype = div [] $ concat
+    [ [ div [ class_ "components-title-demo" ] [ text "Components" ]
+      , div [ class_ "container-demo" ] (catMaybes exts)
+      , div [ class_ "datamodel-demo" ] [ div [ class_ "title" ] [ text "Data model" ], svg [ class_ "fill", shapeRendering "geometricPrecision" ] (catMaybes dmods) ]
+      ]
+    ]
+    where
+      cell (i × arg@(_ × RFun _ _))
+        | Just (label × _ × _) <- A.index st.refArray i
+        , S.contains (S.Pattern $ S.toLower st.search) (S.toLower label) = Just $ div [ class_ "cell" ]
+          [ div [ class_ "title" ] [ text label ]
+          , svg [ class_ "svg", shapeRendering "geometricPrecision" ]
+              [ snapValue $ ext snap UILabelTopLeft (230.5 × 32.5) (i × arg)
+              ]
+          ]
+      cell _ = Nothing
+
+      filterdmodel arg@(_ × RFun _ _) = false
+      filterdmodel _ = true
+
+      dmodel (_ × arg@(_ × RFun _ _)) = Nothing
+      dmodel (i × arg)
+        | Just (label × _ × _) <- A.index st.refArray (i + st.refIndex) = Just $ snapValue $ ext snap (\str -> UILabelLeft str) (pos i) (i × arg)
         | otherwise = Nothing
 
       pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + (tn i * gap))
