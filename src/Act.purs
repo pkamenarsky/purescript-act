@@ -125,8 +125,7 @@ showUnfcs m = S.joinWith ", " $ map (\(Var v × Const c) -> v <> " -> " <> c) (M
 
 ui :: forall eff. Component eff AppState
 ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" ] $
- [ div [ class_ "logo" ] [ img [ src "logo.png" ] [] ]
- , div [ class_ "wire-split" ]
+ [ div [ class_ "wire-split" ]
    [ svg [ shapeRendering "geometricPrecision", width "2000px", height "600px" ]
      $ [ -- snapValue $ typeComponent st M.empty (specialize st.unfcs st.rtype) (50.5 × 100.5 × 700.0 × 400.0) _substs (specialize st.unfcs st.rtype)
          cmp'
@@ -157,7 +156,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" 
          -- , snapValue exts
          ])
          where
-           pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + (tn i * gap))
+           pos i = (200.0 + (2.0 * gap) × (gap * 2.0) + 80.0 + (tn i * gap))
 
            filterdmodel arg@(_ × RFun _ _) = false
            filterdmodel _ = true
@@ -167,7 +166,7 @@ ui = state \st -> let snap × cmp' = cmp st in div [ class_ "unselectable fill" 
            cmp   = child st Full ctx' (specialize st.unfcs st.rtype) demoSize (_subst × Just st.subst × chType)
 
            prototypeSize = 450.5 × 200.5 × 260.0 × 260.0
-           demoSize      = 450.5 × 105.5 × 220.0 × 395.0
+           demoSize      = 420.5 × 105.5 × 220.0 × 395.0
      | otherwise = const Nothing × g [] []
 
 --------------------------------------------------------------------------------
