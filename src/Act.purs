@@ -75,6 +75,7 @@ type AppState =
   , subst     :: Substitution
   , unfcs     :: M.Map Var Const
   , search    :: String
+  , offset    :: Vec
 
   , tabbedSt  :: Boolean
   , strSt     :: String
@@ -96,6 +97,7 @@ emptyAppState =
   , subst     : Placeholder
   , unfcs     : M.empty
   , search    : ""
+  , offset    : 0.0 × 0.0
 
   , tabbedSt  : true
   , strSt     : "Text"
@@ -115,9 +117,9 @@ main = void (elm' >>= RD.render ui')
           elm <- getElementById (ElementId "main") (documentToNonElementParentNode (htmlDocumentToDocument doc))
           pure $ unsafePartial fromJust elm
 
-demo :: forall eff. String -> Int -> Eff (dom :: D.DOM | eff) Unit
-demo eid demoid = void (elm' >>= RD.render ui')
-  where ui' = R.createFactory (R.createClass (mkSpec emptyAppState mainUI)) unit
+demo :: forall eff. String -> Int -> Int -> Int -> Eff (dom :: D.DOM | eff) Unit
+demo eid demoid offsetx offsety = void (elm' >>= RD.render ui')
+  where ui' = R.createFactory (R.createClass (mkSpec (emptyAppState { offset = tn offsetx × tn offsety }) mainUI)) unit
 
         elm' :: Eff (dom :: D.DOM | eff) D.Element
         elm' = do
@@ -312,8 +314,8 @@ subdivide'' (bx × by × bw × bh) snapf as f = flip traverse (indexedRange as) 
 shrink :: Rect -> Rect -> Rect
 shrink (sl × st × sr × sb) (rx × ry × rw × rh) = ((rx + sl) × (ry + st) × (rw - (sl + sr)) × (rh - (st + sb)))
 
-meToV :: R.MouseEvent -> Vec
-meToV { pageX, pageY } = (pageX - 100.0) × pageY
+meToV :: AppState -> R.MouseEvent -> Vec
+meToV st { pageX, pageY } = (pageX - fst st.offset) × (pageY - snd st.offset)
 
 --------------------------------------------------------------------------------
 
@@ -386,29 +388,29 @@ type Level = Int
 ext :: forall eff. SnapF -> (String -> UILabel) -> Vec -> (Int × Label × RType) -> SnapComponent eff
 ext snap labelf (ox × oy) (_ × l × t@(RFun _ (RConst (Const "Component")))) = pure $ state \st -> g
   [ onMouseDrag \e -> case e of
-      DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
-      DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV e } }
+      DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV st e } }
+      DragMove  e -> modify \st -> st { dragState = Just $ DragHOC { hoc: t, label: l, pos: meToV st e } }
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        case snap (Left (e.pageX - 100.0 × e.pageY × dropSize × dropSize)) of
+        case snap (Left (e.pageX - fst st.offset × (e.pageY - snd st.offset) × dropSize × dropSize)) of
           Just (Left f) -> modify (f l t)
           _             -> modify \st -> st { debug = "no drop target" }
   ]
   -- [ uicircle (ox + (3.0 * gap) × oy + (tn i * gap)) (labelf "HOC") ]
   [ snapValue $ typeComponent st Compact M.empty (specialize st.unfcs st.rtype) (ox × oy × dropSize × dropSize) (_const L.Nil) t ]
-ext snap labelf (ox × oy) (i × l × t) = pure $ g
+ext snap labelf (ox × oy) (i × l × t) = pure $ state \st -> g
   [ onMouseDrag \e -> case e of
-      DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV e, end: meToV e } }
+      DragStart e -> modify \st -> st { debug = "DRAG", dragState = Just $ DragConn { start: meToV st e, end: meToV st e } }
       DragMove  e -> modify \st -> st
         { dragState = flip map st.dragState \ds -> case ds of
-            DragConn dc -> DragConn $ dc { end = meToV e }
+            DragConn dc -> DragConn $ dc { end = meToV st e }
             _ -> ds
         }
       DragEnd   e -> do
         modify \st -> st { dragState = Nothing, debug = "" {- show $ map snd $ (fst (snch st)) (e.pageX × e.pageY × 200.0 × 100.0) -} }
 
-        case snap (Right (e.pageX - 100.0 × e.pageY)) of
+        case snap (Right (e.pageX - fst st.offset × e.pageY - snd st.offset)) of
           Just (Right f) -> modify (f l t)
           _              -> pure unit
   ]
