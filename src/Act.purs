@@ -91,9 +91,9 @@ emptyAppState :: AppState
 emptyAppState =
   { debug     : "Debug: "
   , dragState : Nothing
-  , refArray  : refArray'
-  , refIndex  : refIndex'
-  , rtype     : rtypeFromRefs refArray'
+  , refArray  : undefined
+  , refIndex  : undefined
+  , rtype     : undefined
   , subst     : Placeholder
   , unfcs     : M.empty
   , search    : ""
@@ -102,9 +102,6 @@ emptyAppState =
   , tabbedSt  : true
   , strSt     : "Text"
   }
-  where
-    refArray' = refArray1
-    refIndex' = 1
 
 main :: forall eff. Eff (dom :: D.DOM | eff) Unit
 main = void (elm' >>= RD.render ui')
@@ -118,15 +115,19 @@ main = void (elm' >>= RD.render ui')
           pure $ unsafePartial fromJust elm
 
 demo :: forall eff. String -> Int -> Int -> Int -> Eff (dom :: D.DOM | eff) Unit
-demo eid demoid offsetx offsety = void (elm' >>= RD.render ui')
-  where ui' = R.createFactory (R.createClass (mkSpec (emptyAppState { offset = tn offsetx × tn offsety }) mainUI)) unit
+demo eid demoid offsetx offsety
+  | Just demo <- demos A.!! demoid = void (elm' >>= RD.render ui')
+  where
+    refArray' × refIndex' = demo
+    ui' = R.createFactory (R.createClass (mkSpec (emptyAppState { offset = tn offsetx × tn offsety, refArray = refArray', refIndex = refIndex', rtype = rtypeFromRefs refArray' }) mainUI)) unit
 
-        elm' :: Eff (dom :: D.DOM | eff) D.Element
-        elm' = do
-          win <- window
-          doc <- document win
-          elm <- getElementById (ElementId eid) (documentToNonElementParentNode (htmlDocumentToDocument doc))
-          pure $ unsafePartial fromJust elm
+    elm' :: Eff (dom :: D.DOM | eff) D.Element
+    elm' = do
+      win <- window
+      doc <- document win
+      elm <- getElementById (ElementId eid) (documentToNonElementParentNode (htmlDocumentToDocument doc))
+      pure $ unsafePartial fromJust elm
+  | otherwise = pure unit
 
 --------------------------------------------------------------------------------
 
@@ -730,8 +731,13 @@ strStateR = mkRef "Text" (pure $ lensT stringT) lns
 refArray :: Array Ref
 refArray = [ splitCR, inputCR, textCR, tabbedCR, listCR, mapsCR, threeCR, tweetCR, tweetsR, cubeR, dodecahedronR, tabbedStateR, strStateR ]
 
-refArray1 :: Array Ref
-refArray1 = [ inputCR, strStateR ]
+demos :: Array (Array Ref × Int)
+demos =
+  [ [ inputCR, strStateR ] × 1
+  , [ splitCR, inputCR, textCR, strStateR ] × 2
+  , [ listCR, tweetCR, tweetsR ] × 2
+  , [ tabbedCR, threeCR, mapsCR, tabbedStateR, dodecahedronR, cubeR ] × 2
+  ]
 
 --listComponentExpr :: Expr
 --listComponentExpr = ELam (L.fromFoldable ["listC", "tweets", "tweetC"]) (EApp (EVar "listC") (L.fromFoldable [EVar "tweets", EVar "tweetC"]))
