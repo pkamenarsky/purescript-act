@@ -15,3 +15,15 @@
 * kontinuum-backend
 ** cheap snapshots when storing copies of data
 ** map<a, map<b, [c]>> should work reliably
+* questions
+** server-side logic?
+*** could it be subsumed by permissions only?
+** loading indicators?
+** analytics
+*** semantic reasoning
+**** all delete components in a list component are tracked as one or separately
+*** automatically track changes to components and preserve semantics
+**** i.e. move login button into some other component, still login button
+** version control
+*** track changes to data model
+**** automatically infer migrations
